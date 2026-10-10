@@ -3,6 +3,8 @@ import { CORE_VERSION, consume, initialRunLimits, remaining, RUN_LIMITS, type Li
 import { MockAdProvider, MockBillingProvider, MonetisationService, realDelay } from "@tow/platform";
 import { baseContent } from "./content.ts";
 
+const LOG_SIZE = 6;
+
 /** Ad placeholder length; tests shorten it with ?adms=200. */
 const adDurationMs = Number(new URLSearchParams(location.search).get("adms") ?? "2000");
 
@@ -55,7 +57,7 @@ function MonetisationCheck() {
   const [premium, setPremium] = useState(false);
   const [ad, setAd] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [log, setLog] = useState<string[]>([]);
+  const [log, setLog] = useState<{ lines: string[]; total: number }>({ lines: [], total: 0 });
 
   const services = useMemo(() => {
     const billing = new MockBillingProvider();
@@ -63,7 +65,11 @@ function MonetisationCheck() {
     return { billing, monetisation: new MonetisationService(ads, billing, realDelay) };
   }, []);
 
-  const note = (line: string) => setLog((prev) => [line, ...prev].slice(0, 6));
+  // Newest first; only the last LOG_SIZE lines are kept, and the panel says so once it trims.
+  const note = (line: string) =>
+    setLog((prev) => ({ lines: [line, ...prev.lines].slice(0, LOG_SIZE), total: prev.total + 1 }));
+  const reviveLeft = remaining(limits, "revive");
+  const rerollLeft = remaining(limits, "reroll");
 
   async function attempt(action: LimitedAction) {
     if (remaining(limits, action) === 0) {
@@ -94,11 +100,23 @@ function MonetisationCheck() {
       <h2 id="money-h">Revive and reroll rules</h2>
       <p className="hint">Test panel using mock ads and purchases. The limits come from the rules core.</p>
       <div className="row">
-        <button type="button" className="btn" disabled={busy} onClick={() => void attempt("revive")} data-testid="revive">
-          Revive · {remaining(limits, "revive")} left
+        <button
+          type="button"
+          className="btn"
+          disabled={busy || reviveLeft === 0}
+          onClick={() => void attempt("revive")}
+          data-testid="revive"
+        >
+          Revive · {reviveLeft} left
         </button>
-        <button type="button" className="btn" disabled={busy} onClick={() => void attempt("reroll")} data-testid="reroll">
-          ↻ Reroll · {remaining(limits, "reroll")} left
+        <button
+          type="button"
+          className="btn"
+          disabled={busy || rerollLeft === 0}
+          onClick={() => void attempt("reroll")}
+          data-testid="reroll"
+        >
+          ↻ Reroll · {rerollLeft} left
         </button>
       </div>
       <div className="row">
@@ -109,11 +127,16 @@ function MonetisationCheck() {
           New run
         </button>
       </div>
-      <ol className="log" data-testid="log">
-        {log.map((l, i) => (
-          <li key={`${i}-${l}`}>{l}</li>
+      {log.total > 0 && (
+        <p className="hint log-caption" data-testid="log-caption">
+          {log.total > LOG_SIZE ? `Last ${LOG_SIZE} of ${log.total} actions, newest first` : "Newest first"}
+        </p>
+      )}
+      <ul className="log" data-testid="log">
+        {log.lines.map((l, i) => (
+          <li key={`${log.total - i}-${l}`}>{l}</li>
         ))}
-      </ol>
+      </ul>
 
       {ad && (
         <div className="ad" role="dialog" aria-label="Advertisement placeholder" data-testid="ad-placeholder">
