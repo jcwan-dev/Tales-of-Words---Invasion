@@ -72,7 +72,9 @@ body {
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn:focus-visible { outline: 2px solid var(--frost); outline-offset: 2px; }
 
-.log { margin: 0; padding-left: 1.2rem; font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); min-height: 3em; }
+.log { margin: 0; padding: 0; list-style: none; font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); min-height: 3em; }
+.log li:first-child { color: var(--text); }
+.log-caption { margin: 0.25rem 0 0.15rem; font-size: 0.7rem; }
 
 .ad {
   position: fixed;
