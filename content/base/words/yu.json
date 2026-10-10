@@ -1,0 +1,24 @@
+{
+  "kind": "word",
+  "id": "word.yu",
+  "name": "word.yu.name",
+  "glyph": "愈",
+  "spoken": "Yu",
+  "meaning": "word.yu.meaning",
+  "placeholder": true,
+  "cost": 1,
+  "cooldown": 1,
+  "effects": [
+    {
+      "type": "heal",
+      "amount": 4,
+      "target": "self",
+      "scaling": [
+        {
+          "stat": "wisdom",
+          "per": 3
+        }
+      ]
+    }
+  ]
+}

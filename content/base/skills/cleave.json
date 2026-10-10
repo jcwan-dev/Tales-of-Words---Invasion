@@ -1,0 +1,25 @@
+{
+  "kind": "skill",
+  "id": "skill.cleave",
+  "name": "skill.cleave.name",
+  "cost": 2,
+  "cooldown": 1,
+  "effects": [
+    {
+      "type": "damage",
+      "damageType": "physical",
+      "amount": 6,
+      "target": "enemy",
+      "scaling": [
+        {
+          "stat": "might",
+          "per": 2
+        },
+        {
+          "stat": "agility",
+          "per": 1
+        }
+      ]
+    }
+  ]
+}

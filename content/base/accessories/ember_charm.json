@@ -1,0 +1,6 @@
+{
+  "kind": "accessory",
+  "id": "accessory.ember_charm",
+  "name": "accessory.ember_charm.name",
+  "grants": "word.huo"
+}

@@ -1,0 +1,30 @@
+{
+  "kind": "word",
+  "id": "word.dun",
+  "name": "word.dun.name",
+  "glyph": "盾",
+  "spoken": "Dun",
+  "meaning": "word.dun.meaning",
+  "placeholder": true,
+  "cost": 1,
+  "cooldown": 2,
+  "effects": [
+    {
+      "type": "status",
+      "status": "warded",
+      "stacks": 1,
+      "target": "self"
+    },
+    {
+      "type": "restoreShield",
+      "amount": 4,
+      "target": "self",
+      "scaling": [
+        {
+          "stat": "wisdom",
+          "per": 2
+        }
+      ]
+    }
+  ]
+}

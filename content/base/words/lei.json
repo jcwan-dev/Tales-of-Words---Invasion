@@ -1,0 +1,32 @@
+{
+  "kind": "word",
+  "id": "word.lei",
+  "name": "word.lei.name",
+  "glyph": "雷",
+  "spoken": "Lei",
+  "meaning": "word.lei.meaning",
+  "placeholder": true,
+  "cost": 1,
+  "cooldown": 2,
+  "effects": [
+    {
+      "type": "damage",
+      "damageType": "arcane",
+      "amount": 6,
+      "target": "enemy",
+      "scaling": [
+        {
+          "stat": "arcana",
+          "per": 3
+        }
+      ]
+    },
+    {
+      "type": "status",
+      "status": "stunned",
+      "stacks": 1,
+      "target": "enemy",
+      "chance": 0.2
+    }
+  ]
+}

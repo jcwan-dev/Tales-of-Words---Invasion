@@ -1,0 +1,11 @@
+{
+  "kind": "armor",
+  "id": "armor.riveted_brigandine",
+  "name": "armor.riveted_brigandine.name",
+  "stats": {
+    "vitality": 1,
+    "agility": -1
+  },
+  "hp": 10,
+  "shield": 8
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "character",
+  "id": "char.sellsword",
+  "name": "char.sellsword.name",
+  "favoured": [
+    "might",
+    "vitality"
+  ],
+  "eventTags": [
+    "soldier",
+    "mercenary_company",
+    "bounty"
+  ]
+}

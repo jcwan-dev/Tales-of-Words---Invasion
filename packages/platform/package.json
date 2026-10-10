@@ -1,0 +1,21 @@
+{
+  "name": "@tow/platform",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Platform adapters (ads, billing, entitlements, storage). Native implementations arrive in M4; web mocks are used in the browser and in tests.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tow/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

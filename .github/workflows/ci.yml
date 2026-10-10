@@ -1,0 +1,100 @@
+# Runs every check on every push and pull request, then publishes main to the staging link.
+# Spec: "Builds and deployment" and "Testing strategy".
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, types, tests, content, build, browser tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # only used to commit the first pnpm-lock.yaml back to a feature branch
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      # The repo was scaffolded in an environment without registry access, so the first
+      # run generates pnpm-lock.yaml. Once it is committed, switch to --frozen-lockfile.
+      - name: Install
+        run: |
+          if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else pnpm install --no-frozen-lockfile; fi
+
+      - name: Commit generated lockfile (first run only, feature branches only)
+        if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+        run: |
+          if [ -n "$(git status --porcelain pnpm-lock.yaml)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pnpm-lock.yaml
+            git commit -m "chore: add generated pnpm-lock.yaml"
+            git push
+          fi
+
+      - name: Lint (architecture rules included)
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit, scenario and invariant tests
+        run: pnpm test
+
+      - name: Validate content packs
+        run: pnpm validate:content
+
+      - name: Simulator determinism smoke
+        run: pnpm sim -- --runs 2000 --seed ci
+
+      - name: Build web app
+        run: pnpm build
+
+      - name: Install browser for tests
+        run: pnpm --filter @tow/app exec playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: pnpm test:e2e
+
+      - name: Upload browser test report and videos
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            packages/app/playwright-report
+            packages/app/test-results
+          retention-days: 14
+
+      - name: Upload staging site
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/app/dist
+
+  deploy-staging:
+    name: Publish staging link (GitHub Pages)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

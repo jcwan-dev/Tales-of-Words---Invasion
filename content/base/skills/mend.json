@@ -1,0 +1,20 @@
+{
+  "kind": "skill",
+  "id": "skill.mend",
+  "name": "skill.mend.name",
+  "cost": 1,
+  "cooldown": 2,
+  "effects": [
+    {
+      "type": "heal",
+      "amount": 4,
+      "target": "self",
+      "scaling": [
+        {
+          "stat": "wisdom",
+          "per": 3
+        }
+      ]
+    }
+  ]
+}

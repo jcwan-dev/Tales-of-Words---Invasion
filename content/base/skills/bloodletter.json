@@ -1,0 +1,28 @@
+{
+  "kind": "skill",
+  "id": "skill.bloodletter",
+  "name": "skill.bloodletter.name",
+  "cost": 2,
+  "cooldown": 2,
+  "effects": [
+    {
+      "type": "damage",
+      "damageType": "physical",
+      "amount": 4,
+      "target": "enemy",
+      "piercing": true,
+      "scaling": [
+        {
+          "stat": "cunning",
+          "per": 2
+        }
+      ]
+    },
+    {
+      "type": "status",
+      "status": "bleeding",
+      "stacks": 3,
+      "target": "enemy"
+    }
+  ]
+}

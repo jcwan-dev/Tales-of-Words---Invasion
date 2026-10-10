@@ -1,0 +1,9 @@
+{
+  "kind": "armor",
+  "id": "armor.ward_stitched_robe",
+  "name": "armor.ward_stitched_robe.name",
+  "stats": {
+    "wisdom": 1
+  },
+  "shield": 10
+}

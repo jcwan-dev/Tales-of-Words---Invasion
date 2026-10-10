@@ -1,0 +1,31 @@
+{
+  "kind": "word",
+  "id": "word.huo",
+  "name": "word.huo.name",
+  "glyph": "火",
+  "spoken": "Huo",
+  "meaning": "word.huo.meaning",
+  "placeholder": true,
+  "cost": 1,
+  "cooldown": 1,
+  "effects": [
+    {
+      "type": "damage",
+      "damageType": "arcane",
+      "amount": 3,
+      "target": "enemy",
+      "scaling": [
+        {
+          "stat": "arcana",
+          "per": 3
+        }
+      ]
+    },
+    {
+      "type": "status",
+      "status": "burning",
+      "stacks": 2,
+      "target": "enemy"
+    }
+  ]
+}
