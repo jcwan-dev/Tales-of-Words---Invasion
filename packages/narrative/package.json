@@ -1,0 +1,20 @@
+{
+  "name": "@tow/narrative",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Ink adapter (inkjs): run state in as variables, effects out. Implemented in M2.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "echo \"narrative: no tests until M2\""
+  },
+  "dependencies": {
+    "@tow/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
+}

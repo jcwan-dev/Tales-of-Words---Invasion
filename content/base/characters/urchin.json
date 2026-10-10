@@ -1,0 +1,13 @@
+{
+  "kind": "character",
+  "id": "char.urchin",
+  "name": "char.urchin.name",
+  "favoured": [
+    "cunning",
+    "agility"
+  ],
+  "eventTags": [
+    "street",
+    "thieves_signs"
+  ]
+}

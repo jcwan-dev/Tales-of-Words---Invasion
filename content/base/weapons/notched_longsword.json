@@ -1,0 +1,18 @@
+{
+  "kind": "weapon",
+  "id": "weapon.notched_longsword",
+  "name": "weapon.notched_longsword.name",
+  "stats": {
+    "might": 1
+  },
+  "attack": {
+    "damage": 4,
+    "damageType": "physical",
+    "scaling": [
+      {
+        "stat": "might",
+        "per": 2
+      }
+    ]
+  }
+}

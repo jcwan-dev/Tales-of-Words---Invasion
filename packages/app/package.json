@@ -1,0 +1,30 @@
+{
+  "name": "@tow/app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The game UI: React screens, animation, input. Packaged for Android with Capacitor (M4).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "echo \"app: unit tests arrive with the first screens (M3)\"",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@tow/core": "workspace:*",
+    "@tow/platform": "workspace:*",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "typescript": "~5.9.2",
+    "vite": "^6.3.5",
+    "@types/node": "^22.10.2"
+  }
+}

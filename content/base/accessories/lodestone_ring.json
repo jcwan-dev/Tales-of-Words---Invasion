@@ -1,0 +1,9 @@
+{
+  "kind": "accessory",
+  "id": "accessory.lodestone_ring",
+  "name": "accessory.lodestone_ring.name",
+  "stats": {
+    "arcana": 1,
+    "intelligence": 1
+  }
+}

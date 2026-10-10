@@ -1,0 +1,18 @@
+{
+  "kind": "weapon",
+  "id": "weapon.ashwood_staff",
+  "name": "weapon.ashwood_staff.name",
+  "stats": {
+    "arcana": 1
+  },
+  "attack": {
+    "damage": 3,
+    "damageType": "arcane",
+    "scaling": [
+      {
+        "stat": "arcana",
+        "per": 2
+      }
+    ]
+  }
+}

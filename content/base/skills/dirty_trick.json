@@ -1,0 +1,31 @@
+{
+  "kind": "skill",
+  "id": "skill.dirty_trick",
+  "name": "skill.dirty_trick.name",
+  "cost": 1,
+  "cooldown": 1,
+  "effects": [
+    {
+      "type": "damage",
+      "damageType": "physical",
+      "amount": 3,
+      "target": "enemy",
+      "scaling": [
+        {
+          "stat": "cunning",
+          "per": 2
+        },
+        {
+          "stat": "agility",
+          "per": 1
+        }
+      ]
+    },
+    {
+      "type": "status",
+      "status": "enfeebled",
+      "stacks": 2,
+      "target": "enemy"
+    }
+  ]
+}

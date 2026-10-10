@@ -1,0 +1,18 @@
+{
+  "kind": "weapon",
+  "id": "weapon.twin_knives",
+  "name": "weapon.twin_knives.name",
+  "stats": {
+    "agility": 1
+  },
+  "attack": {
+    "damage": 3,
+    "damageType": "physical",
+    "scaling": [
+      {
+        "stat": "agility",
+        "per": 2
+      }
+    ]
+  }
+}

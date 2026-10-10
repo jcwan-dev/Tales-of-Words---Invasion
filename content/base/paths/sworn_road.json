@@ -1,0 +1,11 @@
+{
+  "kind": "path",
+  "id": "path.sworn_road",
+  "name": "path.sworn_road.name",
+  "stats": {
+    "wisdom": 1
+  },
+  "rules": [
+    "no_dishonest_choices"
+  ]
+}

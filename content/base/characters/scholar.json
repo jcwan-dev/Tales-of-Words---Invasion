@@ -1,0 +1,14 @@
+{
+  "kind": "character",
+  "id": "char.scholar",
+  "name": "char.scholar.name",
+  "favoured": [
+    "arcana",
+    "intelligence"
+  ],
+  "eventTags": [
+    "scholar",
+    "literate",
+    "mage"
+  ]
+}

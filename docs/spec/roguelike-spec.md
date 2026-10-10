@@ -1,0 +1,622 @@
+# Tales of Words: the Roguelike — Game Spec
+
+**Version:** Draft 1.2 (10 Oct 2026)
+**Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
+**Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
+**Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
+
+A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
+
+## Changelog
+- **1.2:** Magic is words of power: every arcane skill is a Word (spoken form + glyph + meaning), cast with one generic animation (shout, glyph appears, flies to target). Firebolt renamed 火 Huo. Stats reframed for words (Arcana = power, Intelligence = vocabulary, Wisdom = healing/warding words). Placeholder Words; compound Words as a later idea.
+- **1.1:** Technology decided: web app in TypeScript packaged with Capacitor (React, Vite, inkjs, RevenueCat, AdMob, Capgo live updates, preview links). Monetisation finalised: Ink unlocks everything; bundles £1.99 as shortcut; Premium £2.99 removes ads. Ads: revive (rewarded, max 2/run), reroll rewards (rewarded, max 3/run), end-of-run interstitial; Premium keeps the same limits. Limits enforced in the rules core. Art pipeline (one image per unit, generic animations). New Rewards screen with reroll.
+- **1.0:** Added "Architecture and development": engine-free C# rules core, data-driven content, determinism, event stream, performance budgets, test strategy, code rules, agent workflow, deployment pipeline, build milestones. Engine choice (Unity vs Godot) left pending.
+- **0.9:** Stacking rules (unlimited stacks; ticking, charge and timed decay; resistance lowers stacks applied). Thorns now fires on being attacked, even when Warded deflects. Synergy effects (Afflictions, consume, convert, slow decay) and example OP builds. Poisoned and Bleeding twists confirmed.
+- **0.8:** Two life bars for every unit: Shield (hit first, refills each fight) and HP (carries over). Armor, accessories and some weapons give Shield and HP. Full named status list (Burning, Poisoned, Bleeding, Stunned, Paralysed, Ambushed, Enfeebled, Dimmed, Emboldened, Kindled, Warded, Thorns, Leeching, Piercing). Damage typed physical or arcane. Hit order defined. Hidden merged into Warded; Dirty Trick now applies Enfeebled.
+- **0.7:** Max 5 skills total (Strike and companion skill included); gaining one when full means forgetting one or leaving the new one. Strike is the only no-cooldown skill and can be forgotten. Intelligence no longer gives a skill slot (gives an extra option when offered skills). New modular turn pipeline and status system (stun, paralysis, ambush, silence, etc.). New "Learning a skill" screen.
+- **0.6:** Combat screen redesigned for portrait: arena on top (character and companion left vs enemy right), floating damage/heal/effect text from each head, intent line, character panel with HP/armor/energy and buff/debuff chips, skill cards along the bottom.
+- **0.5:** Slots redefined. Character = 2 favoured stats that level faster (+2 vs +1) and event triggers (via tags). Companions = special skill and event triggers. Weapon = flat stat bonus and basic attack (no cooldown). Armor = stats and/or HP. Accessory = flexible (skill, stats, HP). Starting technique pick added (1 of 3 before Act I). All characters start at 2 in every stat, 3 in favoured.
+- **0.4:** Each skill now scales with its own stats (not its item's). Skills are the combat actions, plus a free default attack (Strike) from the weapon. Starting skills: 1 each from character, weapon, armor, accessory. Items no longer have primary/secondary stats; the weapon's Strike scales with the weapon's stat.
+- **0.3:** Three affinities replaced by seven stats: Might, Vitality, Cunning, Agility, Arcana, Intelligence, Wisdom. Items now have a primary and an optional secondary stat. Act-end stat raises added.
+- **0.2:** Playable characters are now three class-free backgrounds (Scholar, Sellsword, Urchin) instead of the sisters. Loadout slots are now character, weapon, armor, accessory, path. Companions join during runs instead of being a loadout pick. Books removed as a slot. The sisters become legendary non-playable figures of the world. Bundles updated to match.
+- **0.1:** First draft.
+
+## Core loop
+1. **Loadout:** pick one character, weapon, armor, accessory and path.
+2. **Act opening:** illustration and prologue text.
+3. **Steps:** 10–14 steps per act. At each step the player picks from 2–3 next nodes (event, combat, merchant), each described in story words with its type shown as a tag.
+4. **Act boss:** fixed combat at act end, then a route choice into the next act.
+5. **End of run:** victory or death; earn Ink and lore entries.
+6. **Archive:** spend Ink on unlocks, start a new tale.
+
+First release: 3 acts for a full win, about 40–60 minutes. Runs can be paused and resumed at any node.
+
+**Naming:** "Path" = the way-of-living loadout slot. Story branches between acts = **routes**.
+
+## Characters
+Characters are ordinary people of the world, defined by background rather than class. None is locked to a weapon or school of combat. A character gives two things: **favoured stats** that grow faster, and **event triggers** (story choices only that background can take).
+
+### The seven stats
+Every stat has one job in combat and one in events, so no stat is a dead pick.
+
+| Stat | In combat | In events |
+|---|---|---|
+| Might | Physical damage of heavy weapons; breaking enemy Shield | Force, lifting, intimidation |
+| Vitality | Max HP (20 + 5 per point); resisting bleed and poison | Endurance, cold, hunger, disease |
+| Cunning | Critical hit chance; strength of bleed, poison and traps | Lies, locks, theft, haggling |
+| Agility | Dodge chance; physical damage of light weapons and bows; acting first | Climbing, fleeing, sleight of hand |
+| Arcana | The power behind spoken Words: arcane damage and summons | Sensing magic, using relics |
+| Intelligence | Vocabulary: one extra option whenever you are offered skills or Words; shows enemy intent more precisely | Reading inscriptions and Words, history, languages, puzzles |
+| Wisdom | Words of healing and warding; resisting fear, curses and madness | Insight, reading people, faith |
+
+### Shield and HP
+Every unit, player and enemy, has two life bars.
+- **Shield** (blue, on top) takes damage first. Comes from items: armor mostly, some accessories and a few weapons (buckler, parrying dagger). Skills can restore it during a fight.
+- **HP** (red) takes whatever gets through. Base HP = 20 + 5 per Vitality, plus HP from items. At 0 HP the unit falls.
+- **Shield refills to full at the start of every fight; HP carries over** between fights and only returns through healing, rest and merchants. Shield = surviving one fight, HP = surviving the run.
+- Piercing hits and Poisoned skip Shield and go straight to HP.
+
+### Base characters
+- Every character starts at 2 in all seven stats and 3 in its two favoured stats.
+- At each level-up (end of each act, and after elite fights), the player is offered two stats, one always favoured, and raises one. A favoured stat gains +2; any other stat gains +1. Run cap is 7.
+- Most characters have two favoured stats. Later characters can break the rule (e.g. one favoured stat and stronger event triggers).
+
+| Character | Favoured stats | Base HP | Event triggers |
+|---|---|---|---|
+| The Scholar (attuned to magic) | Arcana, Intelligence | 30 | Reads old tongues and forbidden texts; welcome at academies and libraries; recognised by other mages |
+| The Sellsword (martial training) | Might, Vitality | 35 | Old company contacts; guards and soldiers deal straight; can take bounty contracts |
+| The Urchin (raised on the streets) | Cunning, Agility | 30 | Street contacts and thieves' signs; spots scams and traps; back-alley routes in towns |
+
+Names are placeholder archetypes; they can become named people of the universe later. All three are free. Paid bundles add more backgrounds (e.g. a deserter with Might and Cunning, a pilgrim with Vitality and Wisdom).
+
+Event triggers work through tags: an event choice asks for `soldier` rather than naming the Sellsword, so a future character with the same tag gets those choices for free.
+
+### How stats, items and skills combine
+- Every skill scales with its own stats, chosen to fit what it does. Dirty Trick scales with Cunning and Agility, the fire Word Huo with Arcana, Mend with Wisdom.
+- The character decides which stats grow fastest. Items add flat stats and HP on top. Skills are worth more when they match your strongest stats.
+- Off-type builds are allowed and change over a run. A Sellsword can carry an Ember Charm; at Arcana 2 its Huo is weak, but spending level-ups on Arcana makes it real. A Scholar gets there twice as fast.
+- Items and paths can lower stats too, as the malus on strong items (heavy armor lowers Agility).
+
+## Loadout slots
+Every slot item is a data file with a list of modifiers. Most give a bonus; strong items also carry a malus. Modifiers are read the same way regardless of slot, so balancing is one system.
+
+| Slot | What it gives | Example |
+|---|---|---|
+| Character | 2 favoured stats that level faster, plus event triggers | The Urchin: Cunning and Agility favoured; street contacts, spots scams |
+| Weapon | A flat stat bonus and the basic attack (Strike): free, no cooldown. Some also give Shield. | Twin Knives: +1 Agility; Strike 3 damage +2 per Agility · Sword and Buckler: +1 Might, +6 Shield |
+| Armor | Any mix of stats, HP and Shield | Riveted Brigandine: +1 Vitality, +10 HP, +8 Shield; malus: −1 Agility · Ward-stitched Robe: +1 Wisdom, +10 Shield |
+| Accessory | Flexible: a skill, stats, HP, Shield, or a mix | Ember Charm: the Word 火 Huo · Lodestone Ring: +1 Arcana, +1 Intelligence · Iron Locket: +8 HP · Glass Ward: +6 Shield |
+| Path | Way of living; stat changes and rule-bending modifiers that shape choices | The Sworn Road: +1 Wisdom; malus: locks dishonest choices |
+
+### Companions
+Companions join during a run through events, one at a time. Each gives a **special skill** (its own slot, not counted against the skill limit) plus their own **event triggers**. They can leave or betray you depending on your choices and path. Placeholder examples:
+
+| Companion | Special skill | Event triggers |
+|---|---|---|
+| Mara, a smuggler | Smoke Bomb: Warded 1, next attack deflected (Warded 2 at Cunning 4+) | Hidden routes, black markets, knows people on the water |
+| Brother Aldo, a defrocked priest | Last Rites: heal 6 +2 per Wisdom, remove one curse or status | Speaks with the dead, temple rites, old church grudges |
+
+### The sisters in the game
+Seffira, Viskan and Lina are not playable. They are legendary figures of the world, like Elminster in the Forgotten Realms. They appear in rare events, rumours told at merchants, and lore entries, and can shape the story without the player controlling them.
+
+## Skills
+- Skills are the combat actions, shown as cards. **A player holds at most 5.** Every skill counts: the weapon's Strike, the companion's skill, the starting technique and everything learned.
+- **Strike** (weapon basic attack) is the only skill with no cooldown and no energy cost. Every other skill has a cooldown of at least 1 turn.
+- **Gaining a skill when full:** the new card is shown above the current five. The player forgets one current skill or leaves the new one. Forgetting is permanent for the run.
+- **Strike can be forgotten.** A player can run only cooldown skills, risking turns where nothing is ready; then the only option is End turn. The game warns once before Strike is dropped.
+- Changing weapon mid-run offers the new weapon's Strike as a new skill through the same choice. The weapon's stat bonus applies either way.
+- Forgetting the companion's skill doesn't make them leave; they keep their event triggers. If they leave, their skill goes with them and frees the slot.
+- Sources: accessory (if it gives one), companion, a **starting technique** (pick 1 of 3 before Act I, weighted to favoured stats), scrolls, trainers in events, merchants, level-ups, boss rewards.
+- Each skill lists its own scaling stats (one or two) with a value per point. The card shows the current number from your stats.
+- Skills cost energy (3 per turn) on top of their cooldown.
+- A skill is a list of effects built from a small set of building blocks: damage (physical or arcane), heal, restore Shield, apply status, draw energy, summon, modify enemy intent. New skills are new data, not new code.
+- Upgrades (e.g. "Cleave+") are separate entries pointing to their base skill; an upgrade can lower the cooldown.
+
+### Sample skills
+| Skill | Source | Cost | Cooldown | Effect | Scales with |
+|---|---|---|---|---|---|
+| Strike | Notched Longsword (basic) | 0 | none | 4 damage | +2 per Might |
+| Strike | Twin Knives (basic) | 0 | none | 3 damage | +2 per Agility |
+| 火 Huo (Word) | Ember Charm (accessory) | 1 | 1 | 3 arcane damage, Burning 2 | +3 per Arcana |
+| Smoke Bomb | Mara (companion) | 1 | 3 | Warded 1 | Warded 2 at Cunning 4+ |
+| Last Rites | Brother Aldo (companion) | 2 | 3 | Heal 6, remove 1 status | +2 per Wisdom |
+| Cleave | Starting technique, scroll | 2 | 1 | 6 damage | +2 per Might, +1 per Agility |
+| Dirty Trick | Starting technique, scroll | 1 | 1 | 3 physical damage, Enfeebled 2 | +2 per Cunning, +1 per Agility |
+| Analyse | Starting technique, scroll | 1 | 2 | Reveal intent; next hit +10% | +10% per Intelligence |
+| Mend | Scroll, merchant | 1 | 2 | Heal 4 | +3 per Wisdom |
+| Shore Up | Scroll, armorer | 1 | 2 | Restore 5 Shield | +2 per Vitality |
+| Bloodletter | Scroll, boss reward | 2 | 2 | 4 physical damage, Piercing, Bleeding 3 | +2 per Cunning |
+
+Worked example, Sellsword in the mockups: base 2 everywhere, Might and Vitality 3. Longsword +1 Might; Brigandine +1 Vitality, +10 HP, −1 Agility; Sworn Road +1 Wisdom. Result: Might 4, Vitality 4, Agility 1, Arcana 2, Wisdom 3, 50 HP, 8 Shield. Strike 12, Cleave 15, Huo 9, Mend 13.
+
+Example data:
+```json
+// content/characters/sellsword.json
+{
+  "id": "char.sellsword",
+  "favoured": ["might", "vitality"],
+  "eventTags": ["soldier", "mercenary_company", "bounty"]
+}
+
+// content/weapons/notched_longsword.json
+{
+  "id": "weapon.notched_longsword",
+  "name": "weapon.notched_longsword.name",
+  "stats": { "might": 1 },
+  "attack": { "damage": 4, "scaling": [ { "stat": "might", "per": 2 } ] }
+}
+
+// content/skills/dirty_trick.json
+{
+  "id": "skill.dirty_trick",
+  "cost": 1, "cooldown": 1,
+  "effects": [
+    { "type": "damage", "damageType": "physical", "amount": 3, "target": "enemy",
+      "scaling": [ { "stat": "cunning", "per": 2 }, { "stat": "agility", "per": 1 } ] },
+    { "type": "status", "status": "enfeebled", "turns": 2, "target": "enemy" }
+  ],
+  "upgrade": "skill.dirty_trick_plus"
+}
+```
+
+## Magic: words of power
+All magic follows the Tales of Words magic system: **a caster summons a word, and the word's power takes effect.** The mage opens a hand, shouts the word ("Huo!"), the written character for it (火, fire) appears in front of them, and the fire attack follows. The full system will be defined in the wiki; this section covers how the game represents it and should be updated as the wiki grows.
+
+### Words in the game
+- **Every arcane skill is a Word.** A Word is a skill with extra data: the glyph, the spoken form, its meaning (translated), its element tags and its effects. It follows every skill rule: a card, max 5 cards, cooldowns, energy, its own scaling.
+- **Casting is one generic animation, the same for every Word:**
+  1. The caster's shout floats up from their head ("Huo!").
+  2. The glyph appears in front of the caster, large and glowing in the element's colour.
+  3. It flies or bursts toward the target, and the effect lands with its floating numbers.
+  It takes about 0.8 seconds, shorter in fast mode. A new Word needs no new animation code.
+- **Word cards show the glyph as their art**, with the spoken name and meaning: 火 Huo · Fire.
+- **Learning Words:** from scrolls, teachers met in events, inscriptions and rewards, like any skill.
+- **Carried Words:** an item can hold a Word so non-mages can speak it. The Ember Charm has 火 carved into it, which is how a Sellsword can shout Huo, weakly at Arcana 2.
+
+### What the stats mean for Words
+| Stat | Role in word magic |
+|---|---|
+| Arcana | The power behind the word: damage and effect size of Words |
+| Intelligence | Vocabulary: one more Word offered when choosing, reading inscriptions and sigils in events, and later combining Words |
+| Wisdom | Words of healing, warding and protection |
+
+### Placeholder Words
+These exist only to build and test the system until the wiki defines the real vocabulary. The glyphs and readings are standard Chinese; their game effects are suggestions.
+
+| Glyph | Spoken | Meaning | Effect (suggestion) | Scales with |
+|---|---|---|---|---|
+| 火 | Huo | Fire | 3 arcane damage, Burning 2 | +3 per Arcana |
+| 冰 | Bing | Ice | 4 arcane damage, 25% chance of Paralysed | +2 per Arcana |
+| 雷 | Lei | Thunder | 6 arcane damage, 20% chance of Stunned | +3 per Arcana |
+| 盾 | Dun | Shield | Warded 1 and restore 4 Shield | +2 Shield per Wisdom |
+| 愈 | Yu | Heal | Heal 4 | +3 per Wisdom |
+
+### Idea for later: compound Words
+Holding two Words that form a compound unlocks a stronger third. For example, 火 (fire) and 山 (mountain) form 火山, volcano. The architecture supports this as a new effect module that checks the cards a unit holds. To decide once the wiki's rules on combining words exist.
+
+### Words in events and localisation
+- Inscriptions, sigils and seals in events are Words. Reading them is an Intelligence check, and a Word read in an event can sometimes be learned.
+- **The spoken form and the glyph are never translated.** Only the meaning is translated ("Fire", "Feu").
+- Glyphs are drawn from a web font cut down to only the characters the game uses, which keeps the app small. Any glyph can later be replaced by hand-drawn calligraphy through the art manifest, with no code change.
+
+## Turns and status effects
+Statuses change whether a unit acts, how hard it hits, and what happens when it is hit. None is special-cased in the combat code. Every status is a small module hooking into fixed points of a turn or a hit; the combat code only asks the statuses what to do.
+
+### Turn pipeline
+1. **Turn start:** statuses run start hooks (bleed and burn damage, regeneration).
+2. **Action gate:** each status returns allow, skip (with reason), restrict (a filter on usable cards) or redirect (a forced action, e.g. confusion picks a random card). Skip beats restrict, restrict beats allow.
+3. **Action:** if not skipped, the player picks a card that passes the filter, or ends the turn. Enemies pick from their move list the same way.
+4. **Resolve:** skill effects run; each hit follows the hit order below.
+5. **Turn end:** cooldowns tick down, **including on skipped turns**. Status durations go down; expired ones are removed.
+
+### Hit order
+Every hit (skill, Strike or enemy move) goes through the same steps:
+1. **Base value** from the skill and the attacker's stats.
+2. **Attacker modifiers:** Emboldened/Enfeebled for physical damage, Kindled/Dimmed for arcane.
+3. **Attacked triggers:** Thorns fires now, whether or not the hit lands.
+4. **Warded check:** if the target is Warded, the hit is deflected, one charge is used, and the hit stops (no damage, no statuses).
+5. **Shield, then HP:** damage takes Shield first, the rest goes to HP. Piercing skips Shield.
+6. **Damage triggers:** Leeching heals the attacker; Bleeding on the target gains a stack if the hit was physical. Thorns damage is not an attack, so it never triggers Thorns or Warded back.
+7. **Statuses** carried by the skill are applied, reduced by the target's resistance stat.
+
+A skipped turn shows the reason as floating text over the unit ("Stunned", "Ambushed") and moves on after a short pause.
+
+```
+interface StatusEffect {
+  id, duration, stacks
+  onApply?(unit, ctx)
+  onTurnStart?(unit, ctx)                // burning, poisoned, bleeding
+  gateAction?(unit, ctx): ActionGate     // Allow | Skip(reason) | Restrict(filter) | Redirect(action)
+  modifyOutgoing?(hit, ctx)              // emboldened, enfeebled, kindled, dimmed, piercing
+  modifyIncoming?(hit, ctx)              // warded
+  onDealtDamage?(hit, ctx)               // leeching
+  onAttacked?(hit, ctx)                  // thorns: fires even when deflected
+  onTookDamage?(hit, ctx)                // bleeding gains a stack
+  onTurnEnd?(unit, ctx)
+  onExpire?(unit, ctx)
+}
+
+function runTurn(unit, ctx) {
+  each(unit.statuses, s => s.onTurnStart?.(unit, ctx))
+  const gate = combineGates(unit.statuses.map(s => s.gateAction?.(unit, ctx)))
+  if (gate.skip)          ctx.showFloat(unit, gate.reason)
+  else if (gate.redirect) resolve(gate.redirect, ctx)
+  else                    resolve(await chooseAction(unit, gate.filter), ctx)  // may be "end turn"
+  unit.cards.tickCooldowns()             // always, even when skipped
+  each(unit.statuses, s => s.onTurnEnd?.(unit, ctx))
+  unit.statuses.tickDurations()
+}
+```
+
+### Status list
+Proposed names for the first set; numbers are starting values for playtesting.
+
+| Status | Kind | Effect | Hook | Resisted by |
+|---|---|---|---|---|
+| **Damage over time** (stacks = damage, −1 stack each turn) | | | | |
+| Burning | Debuff | At turn start, take damage equal to stacks, then lose 1 stack. Hits Shield first. | Turn start | Arcana |
+| Poisoned | Debuff | Same, but goes straight to HP, ignoring Shield. | Turn start | Vitality |
+| Bleeding | Debuff | Same, hits Shield first. +1 stack each time the unit takes a physical hit. | Turn start, took damage | Vitality |
+| **Lost turns** | | | | |
+| Stunned | Debuff | Skip the next turn. Can't be stunned again for 1 turn after. | Action gate | Vitality |
+| Paralysed | Debuff | 50% chance to skip each turn while it lasts (2 turns). | Action gate | Wisdom |
+| Ambushed | Debuff | Skip the first turn of combat. Applied by the encounter. | Action gate | Agility, Cunning (spot it in the event before) |
+| **Damage modifiers** (last N turns) | | | | |
+| Enfeebled | Debuff | Physical damage dealt −25%. | Outgoing hit | Vitality |
+| Dimmed | Debuff | Arcane damage dealt −25%. | Outgoing hit | Wisdom |
+| Emboldened | Buff | Physical damage dealt +25%. | Outgoing hit | |
+| Kindled | Buff | Arcane damage dealt +25%. | Outgoing hit | |
+| **Defence and on-hit** | | | | |
+| Warded | Buff | Deflect the next attack completely. Stacks are charges. | Incoming hit | |
+| Thorns X | Buff | Each time you are attacked, the attacker takes X damage, even if the attack is deflected. | Attacked | |
+| Leeching X | Buff | Each time you deal damage, heal X HP (up to damage dealt). | Dealt damage | |
+| Piercing | Buff / keyword | Your next hits skip Shield and go straight to HP; stacks are charges. Also a keyword on single skills (Bloodletter). | Outgoing hit | |
+
+Name notes: Weakened → **Enfeebled**, Weak will → **Dimmed**, Empowered → **Emboldened**, Strong will → **Kindled** (pairs read as opposites). Shielded → **Warded** (avoids confusion with the Shield bar). Drain life → **Leeching**.
+
+Poisoned ignores Shield and Bleeding grows with physical hits, so the three damage-over-time effects play differently and reward different builds.
+
+### Stacking
+Stacking statuses is the main way to build something overpowered, and that's intended.
+- **Every status has stacks.** Reapplying adds stacks (Burning 3 + Burning 2 = Burning 5). No cap.
+- **Different statuses never replace each other.** A target can be Burning, Bleeding and Poisoned at once; all tick at turn start in that order (Burning and Bleeding wear down Shield, then Poisoned goes into HP).
+- **Three ways stacks run out** (set per status in data):
+  - *Ticking:* −1 stack at end of each turn. DoTs, Emboldened, Enfeebled, Kindled, Dimmed, Thorns, Leeching. Damage modifiers are ±25% per stack (Emboldened 3 = +75% this turn, +50% next).
+  - *Charges:* −1 per use. Warded (per deflect), Piercing (per hit).
+  - *Timed:* lasts N turns, no intensity. Stunned, Paralysed, Ambushed.
+- **Resistance** lowers stacks applied, not the chance: each point of the resisting stat above 2 removes 1 stack from an incoming application (minimum 1).
+- **Lost turns can't chain forever:** after a Stunned or Paralysed turn, the unit is immune to both for 1 turn. The one hard limit.
+- Enemies follow the same rules (Thorns enemies punish multi-hit; Warded bosses demand Piercing).
+
+### Synergy effects
+Items, skills and paths can read statuses as well as apply them:
+- **Afflictions** = number of different DoTs on a target (0–3). Effects can scale with it.
+- **Consume** effects remove stacks for a payoff (detonate all Burning for double damage).
+- **Convert** effects turn one status into another (each deflect gives +1 Thorns).
+- **Slow decay** effects change how stacks run out (DoTs lose stacks every other turn).
+All four are new effect types and hooks in the same system.
+
+### Example builds
+| Build | Core statuses | Key pieces (placeholders) | Weak against |
+|---|---|---|---|
+| The Triple Rot | Burning, Bleeding, Poisoned | Fester (skill): 4 damage per Affliction + 1 per DoT stack · Plague Censer (accessory): DoTs lose stacks every other turn · Bloodletter | Short fights, cleansing enemies, high-Vitality bosses |
+| The Bramble Wall | Warded, Thorns | Briar Mail (armor): start fights with Thorns 3 · Mirror Ward (accessory): each deflect gives +1 Thorns · Mara's Smoke Bomb | Enemies that don't attack (DoT casters), Piercing |
+| The Red Feast | Emboldened, Leeching | Multi-hit Strike (Twin Knives) · Bloodthirst (skill): Emboldened 2, Leeching 3 · The Glutton's Path: Leeching never drops below 1 | Warded enemies, Thorns |
+| The Pyre | Kindled, Burning | Huo (火), Ember Charm · Combustion (skill): consume all Burning, deal triple · Ashwood Staff (arcane Strike) | Dimmed, high-Arcana enemies |
+| The Needle | Piercing, Poisoned | Ignores Shield entirely; kills armored bosses that stall other builds | Unshielded swarms |
+
+Each build has a natural counter among enemy types, so runs must adapt. If one build wins every run, fix it with enemy variety and item rarity, not stack caps.
+
+**Candidates for later**, already supported by the hooks: Frightened (no Might skills), Silenced (no-cooldown skills only, so Strike only), Confused (random ready card), Blinded (50% of attacks miss), Regenerating (heal each turn).
+
+New statuses are modules registered by id, same pattern as node types. Status numbers live in content files; only genuinely new behaviour needs code. Enemies use the same pipeline.
+
+## Nodes (modular)
+Each node type is a self-contained module registered with the run engine. The engine only does: show node → wait → apply result. New types later (rest site, shrine, puzzle, ambush) = one new module and its screen.
+
+```
+interface NodeType {
+  id: "event" | "combat" | "merchant" | ...
+  canAppear(run, act): bool        // filters by act, flags, loadout
+  build(run, data): NodeInstance   // rolls loot, enemies, stock
+  present(instance): Screen        // UI for this node
+  resolve(instance): NodeResult    // HP, gold, items, flags, skills
+}
+NodeRegistry.register(new EventNode())
+NodeRegistry.register(new CombatNode())
+NodeRegistry.register(new MerchantNode())
+```
+
+- **Events:** written in Ink (inkle), one file per event. Choices can check character triggers, companion triggers, any of the seven stats, character, path, items, companions or story flags. Locked options stay visible (greyed, with requirement).
+- **Combat:** turn-based. Actions are the free weapon Strike, the companion skill and your skills; each skill card shows its current value and scaling stats. Enemies are data files (stats, weighted moves, a written intent line per move). Intent is a text hint, not a number. Bosses can switch move sets at HP thresholds.
+- **Merchant:** stock rolled from the act's loot table, prices scaled by act, spends crowns (in-run currency). Merchants can be recurring characters.
+
+### Combat screen (portrait)
+Top to bottom:
+1. **Arena** (about the top 40%): character and companion on the left, enemy on the right (groups of up to three enemies stack on the right). Name and HP bar under each unit.
+2. **Floating text:** damage, heals and effects pop up from the head of the unit they hit, bounce slightly, rise and fade within about a second. Damage white on enemies and red on you, damage absorbed by Shield blue with ⛨, heals green, statuses blue (good) or orange (bad). Consecutive popups stagger so they don't overlap.
+3. **Enemy intent** under the arena: the written hint, plus a precise readout (type and rough damage) only with enough Intelligence.
+4. **Character panel:** Shield bar over HP bar, energy pips, then buff and debuff chips. Tapping a chip explains it. Every arena unit shows the same two bars under its feet.
+5. **Skill cards** along the bottom, in thumb reach. Each card: energy cost, name, current value from your stats, scaling stats, source. Strike always first with a gold edge; companion card has its own colour; cooldown cards dimmed with turns left. Never more than five cards, so the row always fits.
+6. **End turn** button. Full combat log one tap away, not on screen.
+
+Tap a card to select, tap again (or tap the enemy) to use. Long press shows full card text. Floating text and screen shake can be reduced in settings.
+
+
+Example event (`content/acts/act1/events/ferryman.ink`):
+```
+=== ferryman ===
+A ferryman waits where the causeway breaks.
+He names his price before you speak: "Something you will miss."
+* {might >= 3 and path == "sworn_road"} [Refuse, and wade across.]
+    ~ hp(-8)
+* [Give him 30 crowns.] ~ gold(-30)
+* {hasTag("soldier")} [Show him your old company seal.]
+* {companion == "mara"} [Let Mara talk.]
+* {intelligence >= 3} [Read the sigil burned into his lantern.]
+* {hasTag("street")} [Cut his mooring rope while he counts.]
+    ~ flag("ferryman_wronged")
+```
+
+## Acts, routes and content packs
+All story content lives in content packs discovered at startup. Base game = one pack; each new act or bundle = another pack. New universe material slots in without code changes.
+
+```
+content/
+  base/
+    pack.json
+    characters/  scholar.json  sellsword.json  urchin.json
+    weapons/  armor/  accessories/  paths/
+    skills/  words/  companions/  enemies/  items/
+    acts/
+      act1_drowned_marches/   (placeholder name)
+        act.json   prologue.ink   events/   art/
+    lore/
+    loc/ en.json fr.json
+  bundle_deserter/            (paid pack, same structure)
+```
+
+`act.json` defines step count, node weights (e.g. event 50 / combat 35 / merchant 15), fixed nodes at given steps (mid-act event, boss), and routes to next acts conditioned on story flags.
+
+## Progression: Ink ✒
+Meta currency earned every run (win or lose) from steps cleared, bosses, lore found and first-time events. Never sold for money.
+
+| Unlock | Ink price | Rough runs |
+|---|---|---|
+| Single weapon / armor / accessory / path | 300–600 | 2–4 |
+| Character | 1,200 | 7–9 |
+| Full bundle item by item | ≈ 3,000 | 18–22 |
+
+Assumes ~150 Ink per average losing run, ~400 per win. To tune with playtesting and analytics.
+
+## Monetisation
+Free to play. **Everything in the game can be unlocked by playing.** Money only buys time and removes ads.
+
+| Offer | Price | What it does |
+|---|---|---|
+| Ink ✒ | Free, earned every run | Unlocks every character, item, path and bundle. Never sold for money. |
+| Character bundle | £1.99 | Unlocks one bundle now instead of grinding Ink for it: 1 character, 1 weapon, 1 armor, 1 accessory, 1 path. |
+| **Premium** | £2.99, one-time | Removes all ads. Revives and rerolls become instant, and the end-of-run ad disappears. The main purchase. |
+
+### Ad placements
+| Moment | Ad type | Player choice | Limit |
+|---|---|---|---|
+| Death | Rewarded video | Opt-in: watch to revive at half HP, or let the tale end | **2 per run** |
+| Rewards after a combat or event | Rewarded video | Opt-in: watch to reroll the reward choices | **3 per run** |
+| End of run, after the summary, before the main screen | Interstitial | Shown automatically | 1 per run |
+
+- **Premium players keep exactly the same limits**: 2 revives and 3 rerolls per run, just without ads. Paying never makes a run stronger, so there is no pay-to-win.
+- There are no banner ads and no ads anywhere else.
+- **If no ad can load** (offline, no ad available), a revive or reroll is still granted after a short wait, so a bad connection never costs a run. The end-of-run ad is simply skipped.
+- **Consent:** in the UK and EU, the game asks for ad consent (Google's consent form) before the first ad. Players who refuse still get ads, but non-personalised ones.
+- The age rating and ad content filters need setting before launch (see "Still to decide").
+- No gacha, no loot boxes, no premium currency, no energy timers.
+
+## Technical approach
+- A web app in TypeScript, packaged for Android with Capacitor. Details in "Architecture and development".
+- No server of our own: local save, Google Play Games cloud save, RevenueCat and Google Play for purchases.
+- Save: one JSON file written after every node, lightly encrypted and versioned; holds meta progress (Ink, unlocks) and the current run.
+- Seeded runs for bug reports, replays and future daily challenges.
+- Firebase Analytics (where runs end, choices picked, Ink per run, ad and purchase funnel) and Remote Config (Ink rates, prices, ad tuning). The per-run revive and reroll limits are fixed in the game rules, never in remote config.
+- Every change playable on a private preview link; after launch, web-only updates ship as live updates without store review.
+
+## Localisation
+- Every player-facing string is a key; Ink files exported per event for translation.
+- Launch in English and French; plan CJK font support from the start.
+- UI leaves ~30% extra room for longer languages.
+- Tags for gender and plurals in story text.
+
+## Planned screens (mockups in the artifact)
+1. Loadout · 2. Act opening · 3. Event · 4. Choosing the next node · 5. Combat (portrait arena + skill cards) · 6. Rewards (pick one, reroll with ad) · 7. Merchant · 8. Learning a skill (forget one or leave it) · 9. Death and revive · 10. Archive and store
+
+## Architecture and development
+This section is the working brief for anyone, human or agent, writing code for the game. **The spec above is the source of truth: rules change here first, then in tests, then in code.**
+
+### Technology (decided 10 Oct 2026)
+**A web app in TypeScript, packaged for Android (and later iOS) with Capacitor.**
+- **Why:** the game is 2D text, cards, bars and images, which HTML and CSS handle well. Agents build and test web code best. Every change can be played in a browser without a store release. The approved HTML mockups carry over almost directly.
+- **Stack:**
+  - TypeScript in strict mode;
+  - Vite to build;
+  - React for screens;
+  - CSS and the Web Animations API for motion;
+  - inkjs for events;
+  - Capacitor for the Android shell;
+  - pnpm workspaces for the monorepo.
+- **Fallback:** if the packaged app ever feels too un-native, the UI can move to React Native. The rules core doesn't depend on the UI, so combat and run logic stay untouched.
+- **Not used:** Unity, Godot, 3D, and any heavyweight game engine. A PixiJS canvas layer can be added later for one screen if CSS isn't enough, without changing anything else.
+
+### Principles
+1. **The rules core is plain TypeScript with no UI or platform code.** Combat, statuses, stacking, hit order, skills, stats, runs, rewards, run limits, economy and content loading live in `packages/core`. It never imports React, the DOM, Capacitor, ads or billing.
+2. **Content is data.** Characters, items, skills, status numbers, enemies, acts and events are JSON and Ink files; art is image files. New content never needs code. New *behaviour* is a new module registered by id (status, effect, node type), never an `if` in existing code.
+3. **Deterministic.** All randomness comes from seeded RNG streams passed through the context, never `Math.random()` or the clock. Same seed + same commands = same result. This gives replays, reproducible bug reports and daily challenges.
+4. **Commands in, events out.** The UI sends commands (`PlayCard`, `EndTurn`, `ChooseOption`, `Revive`, `RerollRewards`). The core resolves them instantly and returns events (`HitResolved`, `ShieldBroken`, `StatusApplied`, `TurnSkipped`, `RewardsRerolled`…). The UI plays those as animations and floating text. The core never waits for animation.
+5. **Platform features sit behind adapters.** Ads, billing, storage, analytics, haptics and live updates are interfaces in `packages/platform`. Each has a native implementation (Capacitor plugins) and a **web mock**, so the full game, including revives, rerolls and purchases, works in a browser for testing.
+
+### Solution layout
+```
+packages/
+  core/          plain TS, no DOM, no platform
+    combat/      turn controller, hit pipeline, combat state, events
+    statuses/    status interface, registry, one file per status
+    effects/     damage, heal, restore shield, apply status, consume, convert…
+    units/       stats, Shield/HP, cards, loadout
+    run/         run state, node graph, level-ups, rewards, RUN LIMITS, Ink, unlocks
+    nodes/       node type interface, registry, event/combat/merchant
+    content/     loaders, schema validation, id resolution
+  narrative/     inkjs adapter: run state in as variables, effects out
+  platform/      adapters: ads, billing, entitlements, storage, analytics,
+                 haptics, live updates; native and web-mock implementations
+  app/           React screens, animation, input, audio, localisation
+content/
+  base/ …        content packs (see "Acts, routes and content packs")
+  art/           images + art manifest
+tools/sim/       headless simulator (Node) for balance and performance
+android/         Capacitor native project
+docs/adr/        architecture decision records
+```
+
+### Combat core design
+- **State:** `CombatState` holds the units, turn number, RNG streams and an event list. A unit holds stats, Shield, HP, its cards (max 5) and its statuses.
+- **Statuses are one entry per id with a stack count**, not one object per application. Burning 50 is a single entry. Each status definition is stateless and registered once; the instance holds only `{id, stacks, decay, source}`.
+- **Hooks are pre-sorted.** Each unit keeps, per hook (turn start, action gate, outgoing, attacked, incoming, took damage, dealt damage, turn end), the list of statuses that implement it. Dispatch only touches statuses that care.
+- **Statuses never name other statuses.** Cross-status logic goes through tags and queries (`countWithTag("dot")` for Afflictions), so adding a status never means editing another.
+- **The hit pipeline is a fixed list of stages** matching the hit order in this spec. New behaviour adds a hook or an effect, not a stage, unless an ADR says otherwise.
+- **Recursion guard:** triggers caused by triggers are capped per hit (for example depth 4), so a bad content combination can't loop forever.
+- **The event log** is the single output: the UI animates it, tests assert on it, replays compare it.
+
+### Monetisation architecture
+The rules on ads and limits are product rules, so they live where nothing can bypass them.
+- **Run limits are enforced in the core.** `RunState.limits` tracks `revivesUsed` (max 2) and `rerollsUsed` (max 3). The core refuses a `Revive` or `RerollRewards` command past the limit, whatever the UI or premium status says. The limits are constants in the rules, not remote config, so they can't drift.
+- **The core never knows about ads or money.** `Revive` and `RerollRewards` need a **grant** from the platform layer. The `MonetisationService` decides how to get one:
+  - Premium owned: grant immediately.
+  - Otherwise: show a rewarded ad, grant on the ad's reward callback.
+  - No ad available: grant after a short wait.
+- **The end-of-run ad** is triggered by the app on the `RunEnded` → summary → "back to menu" step, skipped for Premium or when no ad is available.
+- **Rerolls don't change the rest of the run.** Rewards use their own RNG stream, seeded from the run seed, the node and the reroll number. A reroll changes only that reward screen, and replays record rerolls as commands.
+- **Entitlements:**
+  - Premium and bundles are non-consumable Google Play products.
+  - They are bought and restored through RevenueCat's Capacitor SDK, which also covers iOS later.
+  - Entitlements are cached locally, so the game works offline.
+  - Ink is not sold, so it lives only in the local save; no server is needed.
+- **Ads:** AdMob through the Capacitor AdMob plugin, rewarded video and interstitial only, with Google's consent form (UMP) before the first ad.
+- **Web mock:** in browser builds, ads show a 3-second placeholder card and purchases succeed instantly with a test flag. Every monetisation flow can be tested and watched in the browser.
+
+### Art and animation
+- Each character, companion and enemy is **one transparent image** (WebP, with PNG accepted) in `content/art/`.
+- `art-manifest.json` maps ids to files with:
+  - display size;
+  - a foot anchor (where it stands);
+  - a head anchor (where floating text starts);
+  - an optional tint colour.
+- **Animations are generic code applied to any image:**
+  - shake and red flash when hit;
+  - a short lunge when attacking;
+  - slow breathing scale at rest;
+  - fade and drop on death;
+  - status glows (orange Burning, green Poisoned, red Bleeding, blue shimmer Warded).
+- **Swapping art means replacing a file with the same name.** No code change, no rebuild of logic. Scene illustrations for acts and events work the same way.
+- Later, Rive or Spine animations can replace the image for specific characters behind the same manifest entry.
+- **Words** (spells) need no art: the glyph is drawn from a cut-down CJK web font, with the generic cast animation (shout, glyph appears and glows, flies to the target). A hand-drawn calligraphy image can replace any glyph through the manifest.
+- Animations only use `transform` and `opacity` (GPU-friendly), and respect the reduced-motion setting.
+
+### Performance rules
+- **No object churn in the hit pipeline.** Hits reuse pooled objects; no spreads, closures or array copies in hot paths. Garbage collection pauses are what make mobile combat stutter.
+- **Stacks are integers**, so 50 stacks cost the same as 1.
+- **Logic budgets** (to confirm on a real mid-range Android phone):
+  - one hit with 10 statuses on each side: under 0.1 ms;
+  - a whole player turn including the enemy response: under 2 ms;
+  - the CI benchmark (10,000 simulated fights with 50+ stacks) fails the build if it gets more than 20% slower than its baseline.
+- **UI budgets:**
+  - 60 fps during combat animations on a mid-range Android phone;
+  - at most 8 floating texts on screen at once (extra ones queue);
+  - images sized at 2× display size;
+  - act art loaded when the act starts;
+  - app download under 60 MB at launch.
+
+### Testing strategy
+- **Unit tests** (Vitest) for every status, effect and stage.
+- **Scenario tests written from the spec**, as readable data files that you can check too:
+  ```yaml
+  name: Warded plus Thorns deflects and reflects
+  player: { char: sellsword, statuses: { warded: 1, thorns: 3 } }
+  enemy:  { id: hollow_warden, hp: 50, shield: 0 }
+  steps:  [ enemy_attacks: halberd_swing ]
+  expect: { player.hp: unchanged, player.warded: 0, enemy.hp: 47 }
+  ```
+- **Invariant tests** (fast-check): thousands of random seeded fights and runs, checking rules that must always hold:
+  - HP never above max; Shield and stacks never negative;
+  - Thorns never triggers Thorns; trigger depth never above the cap;
+  - cooldowns tick on skipped turns; stunned units are immune the turn after;
+  - **never more than 2 revives or 3 rerolls in a run, premium or not**;
+  - same seed and commands give the same event log.
+- **Replay tests:** saved seeds and commands with their recorded result. Any change is flagged, so balance never changes by accident.
+- **Content validation:** every content file checked against its schema, every referenced id and art file must exist, every Ink file must compile.
+- **Browser tests** (Playwright) on the preview build with mock ads and billing. These cover full flows: start a run, fight, die and revive, reroll rewards, end the run, see the end-of-run ad placeholder, buy Premium, check that the ads are gone. They record video, and you can also watch them live in Claude's browser.
+- **Device check** on the Google Play internal test track at each milestone: real ads (test units), real purchases (test accounts), performance.
+
+### Code rules (the reviewer's checklist)
+1. `packages/core` imports nothing from `app`, `platform`, React, the DOM or Capacitor (enforced by lint rules).
+2. No content id is compared in rules code (`if (status.id === "burning")` is rejected). Use hooks, tags and data.
+3. All randomness through the context's RNG streams. No `Math.random()` or `Date.now()` in rules.
+4. TypeScript strict, no `any`, no non-null assertions in core.
+5. All player-facing text through localisation keys.
+6. No allocations, spreads or closures in the hit pipeline or turn controller.
+7. **Revive and reroll limits only in the core.** The UI never grants a revive or reroll itself; ads and billing are only reached through the platform adapters.
+8. Every rule in the spec has a scenario test; every new behaviour arrives with its tests.
+9. Save data is versioned with a migration for every format change.
+10. Any change to the core structure (new pipeline stage, new hook, new module type) needs a short ADR in `docs/adr/`.
+11. Performance benchmark and browser tests must pass.
+
+### Agent workflow
+| Role | Who | Sees | Does |
+|---|---|---|---|
+| Orchestrator | Claude in the main session, with you | Spec, repo, results | Turns spec sections into tasks, hands them out, collects results, prepares merges |
+| Spec-to-tests | Agent, fresh context | Spec only, never the code | Writes scenario tests, invariants and browser flows from the spec |
+| Builder | Agent | Spec, task, tests, code | Implements until all tests pass; adds unit tests |
+| Reviewer | Agent, fresh context | Diff, code rules, benchmark and test output | Checks the code rules and performance; can block a merge |
+| Product owner | You | Everything, plus the preview link | Plays builds, approves merges, decides on the spec |
+
+**Loop for each task:**
+1. The orchestrator takes one spec section and writes a task.
+2. Spec-to-tests writes the failing tests.
+3. The builder makes them pass.
+4. CI runs tests, simulation, benchmark, content validation and browser tests, and deploys a preview link.
+5. The reviewer checks against the code rules.
+6. You play the preview, approve, and the change is merged.
+
+If the spec turns out to be unclear or wrong during a task, work stops and the spec is fixed first.
+
+### Builds and deployment
+You shouldn't need a store release to see progress.
+- **Every change:** GitHub Actions runs all checks and publishes a **private preview link** (Cloudflare Pages). Open it on your phone or desktop to play that exact version.
+- **Main branch:** a stable "staging" link that always has the latest approved build.
+- **Milestones:** a version tag builds the Android app (Capacitor + Gradle) and fastlane uploads it to the Google Play **internal test track**, to check real ads, purchases and performance on a device.
+- **After launch:** web-only changes (content, balance, UI, bug fixes) ship as **live updates** through Capgo, with no store review. Changes to native parts (new plugins, Capacitor upgrades) go through the store. Each live update is tied to the native versions it supports, so an old app never receives code it can't run.
+- You promote releases to production by hand.
+
+### Build order
+| Milestone | Content | Done when |
+|---|---|---|
+| M0 Foundations | Monorepo, CI, preview links, lint boundaries, content schemas, empty core, simulator skeleton, first ADRs | A blank app is live on a preview link |
+| M1 Combat core | Shield/HP, hit pipeline, turn pipeline, all 14 statuses with stacking, cards and Strike, cooldowns, energy | All spec scenarios pass headless; benchmark baseline recorded |
+| M2 Run layer | Loadout, stats and level-ups, node registry, events via inkjs, merchant, rewards and rerolls, learning skills, companions, run limits | A full Act I run plays headless in the simulator |
+| M3 Game shell | Screens from the mockups, combat played from the event stream, art manifest and generic animations | Act I playable on the preview link, on a phone browser |
+| M4 Platform | Saves and cloud save, Ink unlocks, Premium and bundles via RevenueCat, AdMob rewarded and interstitial, consent, web mocks, localisation | Revive, reroll, end-of-run ad, purchase and restore all work on an internal-track device |
+| M5 Content and balance | Act I complete, enemies, items, balance with the simulator | Closed playtest build |
+| M6 Release | Acts II and III, polish, store listing, live updates | Production release |
+
+## Still to decide
+- The real vocabulary of Words (from the wiki), and whether compound Words exist.
+- Age rating and ad content filters (Play Console target audience and AdMob settings).
+- Names and backstories for the three base characters, or whether they stay unnamed archetypes.
+- Stat balance: starting values, the +2 / +1 level-up rule, skill scaling numbers and run cap of 7 are first guesses for playtesting.
+- Which companions exist and how many can join per run.
+- Whether forgotten skills can come back (a trainer who re-teaches them, at a price).
+- Whether bosses get partial resistance to stacking (e.g. half stacks from lost-turn statuses).
+- Companions: who they are, how they join, relationship meters.
+- Where and how often the sisters appear in events and lore.
+- Setting of Act I and the main threat across the three acts.
+- Launch content volume (suggested: 3 acts, ~25 events per act).
+- In-game art style: painted 2D, or stylised from the 3D renders.
+- Difficulty tiers after the first win.

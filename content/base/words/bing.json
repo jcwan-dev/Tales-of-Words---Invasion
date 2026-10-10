@@ -1,0 +1,32 @@
+{
+  "kind": "word",
+  "id": "word.bing",
+  "name": "word.bing.name",
+  "glyph": "冰",
+  "spoken": "Bing",
+  "meaning": "word.bing.meaning",
+  "placeholder": true,
+  "cost": 1,
+  "cooldown": 1,
+  "effects": [
+    {
+      "type": "damage",
+      "damageType": "arcane",
+      "amount": 4,
+      "target": "enemy",
+      "scaling": [
+        {
+          "stat": "arcana",
+          "per": 2
+        }
+      ]
+    },
+    {
+      "type": "status",
+      "status": "paralysed",
+      "stacks": 1,
+      "target": "enemy",
+      "chance": 0.25
+    }
+  ]
+}
