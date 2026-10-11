@@ -12,6 +12,7 @@
  * Usage: pnpm --filter @tow/sim bench [-- --check | --record] [--fights N]
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { cpus } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
   beginCombat,
@@ -33,7 +34,7 @@ import {
   type StatusId,
   type UnitInit,
 } from "@tow/core";
-import { annotation, compareToBaseline, type Baseline, type BenchResult } from "./bench-compare.ts";
+import { annotation, compareToBaseline, parseBaseline, recordRun, type BaselineFile, type BenchResult } from "./bench-compare.ts";
 
 const BASELINE_FILE = fileURLToPath(new URL("../bench-baseline.json", import.meta.url));
 const SEED = "bench-v1";
@@ -357,24 +358,37 @@ const result: BenchResult = {
   ratio: round3(median(ratios)),
   workloadHash: warm.hash.toString(16).padStart(8, "0"),
   node: process.version,
+  cpu: (cpus()[0]?.model ?? "unknown").trim().replace(/\s+/g, " "),
+  cores: cpus().length,
 };
 console.log(JSON.stringify({ ...result, events: warm.events }));
 
+/** The baseline file, or null when there is none; an unreadable or old-format file is an error. */
+function readBaseline(): BaselineFile | null {
+  if (!existsSync(BASELINE_FILE)) return null;
+  return parseBaseline(JSON.parse(readFileSync(BASELINE_FILE, "utf8")) as unknown);
+}
+
 if (process.argv.includes("--record")) {
-  const baseline: Baseline = {
-    ratio: result.ratio,
-    perHitUs: result.perHitUs,
-    perRoundUs: result.perRoundUs,
-    workloadHash: result.workloadHash,
-    recordedFrom: `${process.env["GITHUB_SHA"] ?? "local"} ${process.version} ${process.platform}`,
-  };
-  writeFileSync(BASELINE_FILE, `${JSON.stringify(baseline, null, 2)}\n`);
-  console.log(`::notice title=Benchmark::baseline recorded in tools/sim/bench-baseline.json`);
+  // Adds or replaces the entry for this CPU; entries for other CPUs are kept.
+  let current: BaselineFile | null = null;
+  try {
+    current = readBaseline();
+  } catch (e) {
+    console.log(annotation({ level: "notice", text: `starting a new baseline file (${e instanceof Error ? e.message : String(e)})` }, result));
+  }
+  const file = recordRun(current, result, PASSES, `${process.env["GITHUB_SHA"] ?? "local"} ${process.version} ${process.platform}`);
+  writeFileSync(BASELINE_FILE, `${JSON.stringify(file, null, 2)}\n`);
+  console.log(annotation({ level: "notice", text: `baseline recorded for this CPU in tools/sim/bench-baseline.json` }, result));
 }
 
 if (process.argv.includes("--check")) {
-  const baseline: Baseline | null = existsSync(BASELINE_FILE) ? (JSON.parse(readFileSync(BASELINE_FILE, "utf8")) as Baseline) : null;
-  const verdict = compareToBaseline(result, baseline);
-  for (const m of verdict.messages) console.log(annotation(m));
-  if (!verdict.ok) process.exitCode = 1;
+  try {
+    const verdict = compareToBaseline(result, readBaseline());
+    for (const m of verdict.messages) console.log(annotation(m, result));
+    if (!verdict.ok) process.exitCode = 1;
+  } catch (e) {
+    console.log(annotation({ level: "error", text: e instanceof Error ? e.message : String(e) }, result));
+    process.exitCode = 1;
+  }
 }
