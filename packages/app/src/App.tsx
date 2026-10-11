@@ -1,14 +1,31 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CORE_VERSION, consume, initialRunLimits, remaining, RUN_LIMITS, type LimitedAction } from "@tow/core";
 import { MockAdProvider, MockBillingProvider, MonetisationService, realDelay } from "@tow/platform";
 import { baseContent } from "./content.ts";
+import { DebugFight } from "./debug/DebugFight.tsx";
 
 const LOG_SIZE = 6;
 
 /** Ad placeholder length; tests shorten it with ?adms=200. */
 const adDurationMs = Number(new URLSearchParams(location.search).get("adms") ?? "2000");
 
+/** The page to show, from the URL hash (works on GitHub Pages without a router). */
+function useHash(): string {
+  const [hash, setHash] = useState(() => location.hash);
+  useEffect(() => {
+    const onChange = () => setHash(location.hash);
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  return hash;
+}
+
 export function App() {
+  const hash = useHash();
+  return hash === "#debug" ? <DebugFight /> : <TitleScreen />;
+}
+
+function TitleScreen() {
   return (
     <main className="shell">
       <header className="title">
@@ -23,6 +40,13 @@ export function App() {
 
       <BuildStatus />
       <MonetisationCheck />
+
+      <p className="debug-entry">
+        <a className="debug-link" href="#debug" data-testid="debug-link">
+          Debug fight
+        </a>{" "}
+        <span className="hint">· rules test for developers</span>
+      </p>
 
       <footer className="foot">
         build <code>{__BUILD_SHA__}</code> · core {CORE_VERSION} · {__BUILD_TIME__.slice(0, 16).replace("T", " ")} UTC

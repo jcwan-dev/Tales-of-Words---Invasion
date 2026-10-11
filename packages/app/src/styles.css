@@ -96,3 +96,58 @@ body {
   .btn { transition: filter 0.15s; }
   .btn:not(:disabled):hover { filter: brightness(1.1); }
 }
+
+/* Debug fight page (#debug): a developer tool, phone first, same tokens. */
+.debug-entry { text-align: center; margin: 0; }
+.debug-link { color: var(--frost); font-family: var(--f-mono); font-size: 0.85rem; }
+.shell.debug { padding-block: 24px 32px; gap: 16px; }
+.shell.debug > *, .shell.debug .panel > * { min-width: 0; }
+.debug-head { display: grid; gap: 6px; }
+.debug-head h1 { font-family: var(--f-display); font-weight: 400; font-size: 1.8rem; margin: 0; color: var(--gold); }
+.debug-head code { color: var(--frost); font-family: var(--f-mono); }
+.panel h3 { font-family: var(--f-mono); font-weight: 500; font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 4px 0 0; }
+
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.field { display: grid; gap: 4px; min-width: 0; font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); }
+.field input, .field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #17131e;
+  color: var(--text);
+  font-family: var(--f-mono);
+  font-size: 1rem;
+}
+.field input:disabled, .field select:disabled { opacity: 0.55; }
+.field.check { grid-template-columns: auto 1fr; align-items: center; align-self: end; min-height: 44px; }
+.field.check input { width: 24px; min-height: 24px; height: 24px; }
+details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-family: var(--f-mono); font-size: 0.8rem; color: var(--frost); }
+details .fields { margin-top: 8px; }
+
+.controls .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.controls .btn { min-height: 48px; }
+.debug-error { color: var(--blood); margin: 0; font-family: var(--f-mono); font-size: 0.8rem; overflow-wrap: anywhere; }
+
+.fight-status { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0; font-family: var(--f-mono); font-size: 0.85rem; }
+.fight-status [data-testid="winner"] { color: var(--gold); }
+.fight-unit { display: grid; gap: 4px; padding: 10px 0; border-top: 1px solid var(--line); }
+.fight-unit.fallen { opacity: 0.7; }
+.fight-name { font-family: var(--f-display); margin: 0; color: var(--text); }
+.meter-label { margin: 0; font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); }
+.bar { height: 8px; border-radius: 4px; background: #17131e; border: 1px solid var(--line); overflow: hidden; }
+.bar span { display: block; height: 100%; }
+.bar.hp span { background: var(--blood); }
+.bar.shield span { background: var(--frost); }
+.chips { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chips li { font-family: var(--f-mono); font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--violet); color: var(--text); }
+
+.fight-log { display: grid; gap: 8px; min-width: 0; }
+.fight-log .log { min-height: 0; }
+.fight-log .log li { overflow-wrap: anywhere; color: var(--muted); }
+.fight-log .log li:first-child { color: var(--muted); }
+.fight-log .log li[data-type="CombatEnded"], .fight-log .log li[data-type="UnitFell"], .fight-log .log li[data-type="TurnSkipped"] { color: var(--text); }
+.turn-head { margin: 0; font-family: var(--f-mono); font-size: 0.75rem; color: var(--gold); }
+
