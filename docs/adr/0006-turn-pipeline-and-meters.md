@@ -12,7 +12,7 @@ Spec 1.4 defines the turn: fight start, turn start (damage over time), the actio
 
   | Point | Hook | Signature | Used by |
   |---|---|---|---|
-  | Turn start | `onTurnStart` | `(owner, stacks, ctx, status, turn)` | Burning, Bleeding, Poisoned (damage, then −1 stack unless `turn.holdDotDecay`, ADR 0007) |
+  | Turn start | `onTurnStart` | `(owner, stacks, ctx, status, turn)` | Burning, Bleeding, Poisoned (damage, then −1 stack if `turn.decay.allows`, ADR 0007) |
   | Action gate | `gateAction` | `(owner, stacks, ctx, status, gate)` | Ambushed, Stunned, Paralysed |
   | Turn end | `onTurnEnd` | `(owner, stacks, ctx, status, turn)` | Ticking decay: Emboldened, Enfeebled, Kindled, Dimmed, Thorns, Leeching |
 
@@ -21,7 +21,7 @@ Spec 1.4 defines the turn: fight start, turn start (damage over time), the actio
 - **Gate combination** (`combat/gate.ts`): results are ranked `allow < restrict < redirect < skip`; each answer is combined into a pooled `GateState`, the stronger result wins and keeps its reason. Skip beats restrict beats allow, as the spec says; redirect sits under skip, as in the spec's `runTurn` sketch. Restrict and redirect carry no payload yet; they arrive with the first status that needs them. Once the result is skip, the controller stops asking, so later meters keep their stacks.
 - **Meters** (`statuses/meter.ts`): at 10+ stacks a meter loses the turn with a set chance (Stunned 1, so no roll; Paralysed 0.5, one roll on the combat RNG) and resets to 0 either way. Events: MeterTriggered, TurnSkipped if lost, StatusRemoved. No immunity turn.
 - **Powers:** superseded by the power table in ADR 0007 (all five powers are data: status, per hit or per attack, decays or not). Stun power is applied at hit step 7 after the hit's statuses; Paralysis power once at the end of `resolveAttack`. Both are ordinary applications (resistance, minimum 1).
-- **Turn info:** turn hooks get a pooled `TurnInfo` (round, `holdDotDecay`) that the controller fills before running them (added in ADR 0007 for slow decay).
+- **Turn info:** turn hooks get a pooled `TurnInfo` (round, and the `decay` gate for slow decay and floors) that the controller fills before running them (ADR 0007).
 - **Fight end:** `CombatContext` has an explicit mutable `fight` field, null by default and set by `beginCombat`, so a bare `resolveHit` can end the fight; there is no hidden module state. The check runs after every hit that felled a unit and after damage over time; if both sides have fallen, the enemies win. CombatEnded is always the last event.
 - **Cooldowns** (`combat/cooldowns.ts`): parallel arrays per unit, searched linearly (a handful of cards). A card used this turn is spared at that turn end.
 

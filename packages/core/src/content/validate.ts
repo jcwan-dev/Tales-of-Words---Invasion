@@ -101,6 +101,12 @@ class Checker {
           this.num(e, "stacks", { min: 1, integer: true });
           if (e["chance"] !== undefined && (!isNum(e["chance"]) || e["chance"] <= 0 || e["chance"] > 1)) this.fail(`${f}.chance`, "must be in (0, 1]");
           break;
+        case "consume":
+          if (!(STATUS_IDS as readonly unknown[]).includes(e["status"])) this.fail(`${f}.status`, "unknown status id");
+          if (!isNum(e["multiplier"]) || e["multiplier"] < 0) this.fail(`${f}.multiplier`, "must be a number >= 0");
+          if (e["damageType"] !== "physical" && e["damageType"] !== "arcane") this.fail(`${f}.damageType`, 'must be "physical" or "arcane"');
+          if (e["max"] !== undefined && (!isNum(e["max"]) || !Number.isInteger(e["max"]) || e["max"] < 1)) this.fail(`${f}.max`, "must be a positive integer");
+          break;
         default:
           this.fail(`${f}.type`, "unknown effect type");
       }

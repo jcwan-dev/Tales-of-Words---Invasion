@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.5 (11 Oct 2026)
+**Version:** Draft 1.6 (11 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.6:** Consume effects can set a cap (eat up to N stacks). Slow decay names the statuses it slows (by id or tag) and whose (own or the other side's). New decay floors: a status never decays below a minimum (Glutton's Path).
 - **1.5:** Damage-over-time powers: Bleed power (every hit), Burn power and Poison power (once per attack) from any source; Bleed power replaces the old "+1 Bleeding on a physical hit". Synergies defined: Afflictions and stack-count scaling, consume (a normal hit, stacks kept if deflected), convert triggers with a recursion cap of 4, slow decay (enemy DoTs lose stacks every other round).
 - **1.4:** Stun and paralysis are build-up meters: Stun power (applied every hit, −1 per turn, full again each fight) and Paralysis power (applied once per attack, never drops) fill the target's meter; at 10 stacks the target loses its next turn (Stunned) or has a 50% chance to (Paralysed), then the meter resets. No immunity turn. Lei gives Stunned 4, Bing Paralysed 3. Turn order (higher Agility side first), cooldown meaning, turn details defined.
 - **1.3:** Hit order details: Piercing ignores Warded (fixes the contradiction with "Warded bosses demand Piercing"); fallen units; status hooks get owner and stacks; hook lists built once at load; certain chances use no RNG; damage modifiers net out and round down; Shield damage counts for damage triggers; Thorns damage is untyped and hits Shield first; resistance on timed statuses removes turns; charges are used when the hit starts; deflected and 0-damage hits defined.
@@ -348,13 +349,15 @@ A power is a unit attribute that adds a status to the target as you attack. Many
 Items, skills and paths can read statuses as well as apply them:
 - **Afflictions** = number of different DoTs on a target (0–3). Damage can scale with it, and with the number of stacks of a tag on the target (Fester: 4 damage per Affliction + 1 per DoT stack).
 - **Consume** effects remove all stacks of one status for a burst: a normal typed hit dealing stacks × multiplier (Combustion: all Burning, ×3, arcane). It goes through the hit order: modifiers apply, Warded can deflect it, Shield first. The stacks are counted when the hit starts. If the hit isn't deflected, all stacks of that status are removed at the end of the hit (including any the hit itself added); a deflected consume keeps them. A consume with 0 stacks still hits for 0.
+  - **Cap (optional, per skill):** a consume can set a maximum ("consume up to 10 Burning, ×3"). It then counts min(stacks, cap) when the hit starts, deals that × multiplier, and removes exactly that many stacks at the end of the hit if it isn't deflected; the rest stay. Without a cap it eats all stacks, as above. In content, a consume is an effect `{ "type": "consume", "status", "multiplier", "damageType", "target", "max"? }`.
 - **Convert** effects are triggers: when something happens to a unit, it gains a status (Mirror Ward: each deflect gives +1 Thorns). Triggers: a deflect, being attacked, dealing damage, taking damage. Once triggers exist that can be set off by other triggers (none do today), chains are capped at a depth of 4 per hit; deeper triggers are ignored and the event log notes it. Trigger details:
   - **Timing:** a deflect trigger fires right after the deflect; dealing-damage then taking-damage triggers fire at step 6, after Leeching; being-attacked triggers fire at the end of the hit (after a consume has removed its stacks). A trigger never changes the hit that set it off (being attacked can't grant a Warded that deflects that same hit).
   - The status gained is the unit's own, so resistance doesn't apply.
   - A unit that has fallen doesn't trigger.
   - Thorns damage and damage over time set off no triggers.
-- **Slow decay** (Plague Censer): while a unit with it is alive, damage over time on the units of the other side loses a stack only every other round (rounds 2, 4, 6…). Damage still happens every turn. Several sources don't stack.
-All four are new effect types and hooks in the same system.
+- **Slow decay** (a unit trait from items, paths or companions): it names which statuses it slows (by id or tag, e.g. the `dot` tag) and whose (the holder's own, or the units of the other side). While the holder is alive, those statuses lose a stack only every other round (rounds 2, 4, 6…); on the other rounds their decay is skipped. Damage over time still deals its damage every turn. Several sources covering the same status don't stack. "Alive" is checked when each decay happens, so killing the holder restores normal decay at once. Plague Censer: the other side's damage over time.
+- **Decay floors** (a unit trait): a status on the holder never decays below a minimum (The Glutton's Path: Leeching never drops below 1). A floor only stops decay (turn-end ticking and the damage-over-time −1); it never creates a status the unit doesn't have or raises one already below the floor, and stacks spent as charges, consumed, or reset by a meter still go to 0. Several floors on the same status: the highest counts. Floors and slow decay combine: a slowed status skips its decay on odd rounds and never drops below its floor.
+All of these are new effect types and hooks in the same system.
 
 ### Example builds
 | Build | Core statuses | Key pieces (placeholders) | Weak against |

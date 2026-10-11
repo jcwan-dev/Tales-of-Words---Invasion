@@ -129,6 +129,7 @@ function runHit(
   apps: readonly StatusApplication[] | undefined,
   consumeStatus: StatusId | null,
   consumeMultiplier: number,
+  consumeMax: number,
 ): boolean {
   if (attacker.fallen || target.fallen) return false;
   const h = acquire(attacker, target, damageType, piercing);
@@ -145,8 +146,16 @@ function runHit(
     };
     ctx.events.push(started);
 
-    // 1. Base value (target terms read the target now, before anything this hit adds).
-    h.base = consumeStatus !== null ? target.statuses.stacks(consumeStatus) * consumeMultiplier : baseValue(amount, scaling, attacker.stats, target);
+    // 1. Base value (target terms read the target now, before anything this hit adds). A consume
+    //    counts min(stacks, cap) now.
+    let consumeCount = 0;
+    if (consumeStatus !== null) {
+      const stacks = target.statuses.stacks(consumeStatus);
+      consumeCount = stacks < consumeMax ? stacks : consumeMax;
+      h.base = consumeCount * consumeMultiplier;
+    } else {
+      h.base = baseValue(amount, scaling, attacker.stats, target);
+    }
     // 2. Attacker modifiers (damage modifiers, Piercing charge).
     dispatch(HIT_HOOKS.modifyOutgoing, h, attacker, ctx);
     h.value = applyModifier(h.base > 0 ? h.base : 0, h.modifierSteps);
@@ -160,9 +169,11 @@ function runHit(
       fireTriggers(ctx, target, "deflect");
     } else {
       resolveLandedHit(ctx, h, apps);
-      // End of a landed consume: every stack of the status goes, including any this hit added.
+      // End of a landed consume: without a cap every stack goes, including any this hit added;
+      // with a cap exactly the count taken when the hit started. Floors and slow decay don't apply.
       if (consumeStatus !== null) {
-        const n = target.statuses.stacks(consumeStatus);
+        const now = target.statuses.stacks(consumeStatus);
+        const n = consumeMax === NO_CAP ? now : consumeCount < now ? consumeCount : now;
         if (n > 0) {
           target.statuses.remove(consumeStatus, n);
           ctx.events.push({ type: "Consumed", unit: target.id, status: consumeStatus, stacks: n });
@@ -217,7 +228,7 @@ function resolveLandedHit(ctx: CombatContext, h: HitState, apps: readonly Status
  * Returns true if the hit landed (it was resolved and not deflected).
  */
 export function resolveHit(ctx: CombatContext, attacker: CombatUnit, target: CombatUnit, hit: HitSpec): boolean {
-  return runHit(ctx, attacker, target, hit.damageType, hit.amount, hit.scaling, hit.piercing === true, hit.statuses, null, 0);
+  return runHit(ctx, attacker, target, hit.damageType, hit.amount, hit.scaling, hit.piercing === true, hit.statuses, null, 0, NO_CAP);
 }
 
 /** A consume effect (spec: Synergy effects): one typed hit for the target's stacks of `status` × `multiplier`. */
@@ -226,15 +237,23 @@ export interface ConsumeSpec {
   multiplier: number;
   damageType: DamageType;
   piercing?: boolean;
+  /** Cap (positive integer): consume at most this many stacks. Without it, all stacks. */
+  max?: number;
 }
 
+/** "No cap" for a consume. */
+const NO_CAP = Number.POSITIVE_INFINITY;
+
 /**
- * One hit whose amount is the target's stacks of `status` (counted when the hit starts) × multiplier.
- * It goes through the whole hit order (modifiers, Thorns, Warded, Shield, per-hit powers, triggers).
- * If it isn't deflected, all stacks of `status` are removed at the end of the hit, including any the
- * hit added (Consumed, unless 0 were removed). It is not an attack: no per-attack powers.
- * Returns whether it landed.
+ * One hit whose amount is n × multiplier, where n is the target's stacks of `status` when the hit starts
+ * (at most `max` if a cap is set). It goes through the whole hit order (modifiers, Thorns, Warded,
+ * Shield, per-hit powers, triggers). If it isn't deflected, stacks are removed at the end of the hit:
+ * without a cap all of them, including any the hit added; with a cap exactly n (Consumed, unless 0
+ * were removed). It is not an attack: no per-attack powers. Returns whether it landed.
+ * Throws a RangeError for a `max` that isn't a positive integer.
  */
 export function resolveConsume(ctx: CombatContext, attacker: CombatUnit, target: CombatUnit, spec: ConsumeSpec): boolean {
-  return runHit(ctx, attacker, target, spec.damageType, 0, undefined, spec.piercing === true, undefined, spec.status, spec.multiplier);
+  const max = spec.max;
+  if (max !== undefined && (!Number.isInteger(max) || max < 1)) throw new RangeError(`resolveConsume: max must be a positive integer, got ${max}`);
+  return runHit(ctx, attacker, target, spec.damageType, 0, undefined, spec.piercing === true, undefined, spec.status, spec.multiplier, max ?? NO_CAP);
 }

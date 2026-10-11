@@ -38,6 +38,8 @@ import { activeId, during, enemy, fight, pass, phys, player } from "./turn-helpe
 //    the hit itself added)". Brief additions: Consumed reports the number removed and is not emitted when 0 were removed.
 // - "Slow decay (Plague Censer): while a unit with it is alive, damage over time on the units of the other side loses
 //    a stack only every other round (rounds 2, 4, 6…). Damage still happens every turn. Several sources don't stack."
+//   Spec 1.6 generalises it (statuses by id or tag, whose: own or the other side); Plague Censer is now the trait
+//   { slowDecay: [{ statuses: { tag: "dot" }, whose: "enemies" }] }. More cases in decay-and-caps.test.ts.
 
 const DOTS: readonly StatusId[] = ["burning", "bleeding", "poisoned"];
 
@@ -781,14 +783,16 @@ describe("Convert triggers: when something happens to a unit, it gains a status"
     it("a unit without converts has empty traits", () => {
       const p = player();
       expect(p.traits.converts ?? []).toEqual([]);
-      expect(p.traits.slowEnemyDotDecay ?? false).toBe(false);
+      expect(p.traits.slowDecay ?? []).toEqual([]);
+      expect(p.traits.decayFloors ?? {}).toEqual({});
     });
   });
 });
 
 // ---------------------------------------------------------------------------------------------
 describe("Slow decay: enemy DoTs lose their stack only on even rounds while a living holder is on the other side", () => {
-  const censer = { traits: { slowEnemyDotDecay: true } };
+  // Spec 1.6: Plague Censer = slow decay of the other side's damage over time.
+  const censer = { traits: { slowDecay: [{ statuses: { tag: "dot" }, whose: "enemies" }] } } as const;
 
   /** Plays rounds with no actions; records the given unit's DoT stacks and damage after each of its turn starts. */
   function watch(state: CombatState, unit: CombatUnit, rounds: number, status: StatusId) {
