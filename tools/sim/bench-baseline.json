@@ -1,0 +1,21 @@
+{
+  "tolerance": 0.2,
+  "byCpu": {
+    "AMD EPYC 7763 64-Core Processor": {
+      "ratio": 7.261,
+      "perHitUs": 0.544,
+      "perRoundUs": 6.285,
+      "workloadHash": "da908594",
+      "samples": 4,
+      "recordedFrom": "CI run 38165862752, attempts 1, 2, 4, 5 (median), 11 Oct 2026"
+    },
+    "AMD EPYC 9V74 80-Core Processor": {
+      "ratio": 5.795,
+      "perHitUs": 0.495,
+      "perRoundUs": 6.291,
+      "workloadHash": "da908594",
+      "samples": 1,
+      "recordedFrom": "CI run 38165862752, attempt 3, 11 Oct 2026"
+    }
+  }
+}
