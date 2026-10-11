@@ -2,6 +2,7 @@ import { applyDamage, reportDamage } from "../actions.ts";
 import type { CombatContext } from "../context.ts";
 import type { HitState } from "../hit-state.ts";
 import type { CombatUnit } from "../unit.ts";
+import { loseOneStack } from "./decay.ts";
 import type { StatusModule } from "./types.ts";
 
 /**
@@ -18,6 +19,6 @@ function onAttacked(hit: HitState, owner: CombatUnit, stacks: number, ctx: Comba
 }
 
 export const thorns: StatusModule = {
-  def: { id: "thorns", kind: "buff", decay: "ticking", resistedBy: [] },
-  hooks: { onAttacked },
+  def: { id: "thorns", kind: "buff", decay: "ticking", resistedBy: [], priority: 0 },
+  hooks: { onAttacked, onTurnEnd: loseOneStack },
 };

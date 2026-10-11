@@ -12,8 +12,24 @@ export * from "./combat/events.ts";
 export * from "./combat/context.ts";
 export * from "./combat/hit-state.ts";
 export * from "./combat/hit.ts";
-export type { DecayKind, StatusDef, StatusHooks, HitHook, HitHookName, StatusModule } from "./combat/statuses/types.ts";
-export { HIT_HOOK_NAMES } from "./combat/statuses/types.ts";
+export * from "./combat/attack.ts";
+export * from "./combat/cooldowns.ts";
+export * from "./combat/gate.ts";
+export type { CombatState } from "./combat/state.ts";
+export { beginCombat, startTurn, endTurn } from "./combat/turn.ts";
+export type {
+  DecayKind,
+  StatusDef,
+  StatusHooks,
+  HitHook,
+  TurnHook,
+  GateHook,
+  HitHookName,
+  TurnHookName,
+  HookName,
+  StatusModule,
+} from "./combat/statuses/types.ts";
+export { HIT_HOOK_NAMES, TURN_HOOK_NAMES, HOOK_NAMES } from "./combat/statuses/types.ts";
 export { statusDef, statusModule } from "./combat/statuses/registry.ts";
 
 export const CORE_VERSION = "0.0.0";

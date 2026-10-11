@@ -24,9 +24,8 @@
     {
       "type": "status",
       "status": "stunned",
-      "stacks": 1,
-      "target": "enemy",
-      "chance": 0.2
+      "stacks": 4,
+      "target": "enemy"
     }
   ]
 }

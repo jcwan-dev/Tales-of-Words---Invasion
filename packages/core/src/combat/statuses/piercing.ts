@@ -15,6 +15,6 @@ function modifyOutgoing(hit: HitState, owner: CombatUnit, _stacks: number, ctx: 
 }
 
 export const piercing: StatusModule = {
-  def: { id: "piercing", kind: "buff", decay: "charges", resistedBy: [] },
+  def: { id: "piercing", kind: "buff", decay: "charges", resistedBy: [], priority: 0 },
   hooks: { modifyOutgoing },
 };

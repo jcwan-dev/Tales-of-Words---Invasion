@@ -2,6 +2,7 @@ import { heal } from "../actions.ts";
 import type { CombatContext } from "../context.ts";
 import type { HitState } from "../hit-state.ts";
 import type { CombatUnit } from "../unit.ts";
+import { loseOneStack } from "./decay.ts";
 import type { StatusModule } from "./types.ts";
 
 /**
@@ -14,6 +15,6 @@ function onDealtDamage(hit: HitState, owner: CombatUnit, stacks: number, ctx: Co
 }
 
 export const leeching: StatusModule = {
-  def: { id: "leeching", kind: "buff", decay: "ticking", resistedBy: [] },
-  hooks: { onDealtDamage },
+  def: { id: "leeching", kind: "buff", decay: "ticking", resistedBy: [], priority: 0 },
+  hooks: { onDealtDamage, onTurnEnd: loseOneStack },
 };
