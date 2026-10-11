@@ -8,7 +8,8 @@
     "validate": "tsx src/validate.ts",
     "sim": "tsx src/sim.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "echo \"sim: no unit tests yet\""
+    "test": "node --import tsx --test test/*.test.ts",
+    "bench": "tsx src/bench.ts"
   },
   "dependencies": {
     "@tow/core": "workspace:*"

@@ -59,6 +59,11 @@ jobs:
       - name: Simulator determinism smoke
         run: pnpm sim -- --runs 2000 --seed ci
 
+      # Spec, Performance rules: fails if more than 20% slower than tools/sim/bench-baseline.json, or over the
+      # per-hit / per-round budgets. With no baseline yet it passes and prints the numbers to record.
+      - name: Performance benchmark
+        run: pnpm --filter @tow/sim bench -- --check
+
       - name: Build web app
         run: pnpm build
 
