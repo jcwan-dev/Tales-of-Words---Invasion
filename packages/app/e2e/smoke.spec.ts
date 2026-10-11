@@ -14,6 +14,26 @@ test("title screen loads with valid content and no console errors", async ({ pag
   expect(errors.filter((e) => !/fonts\.(googleapis|gstatic)/.test(e))).toEqual([]);
 });
 
+test("the game's stylesheet is applied (dark background, gold title, panels)", async ({ page }) => {
+  // Catches a build or deploy where the CSS file is missing or not applied:
+  // the page still works, but would render with browser defaults.
+  await page.goto("./");
+  await expect(page.getByRole("heading", { name: "Invasion" })).toBeVisible();
+  const look = await page.evaluate(() => {
+    const css = (el: Element | null, prop: string) => (el ? getComputedStyle(el).getPropertyValue(prop) : "");
+    return {
+      background: css(document.body, "background-color"),
+      title: css(document.querySelector("h1"), "color"),
+      panelBorder: css(document.querySelector(".panel"), "border-top-style"),
+      fontVariable: getComputedStyle(document.documentElement).getPropertyValue("--f-display").trim(),
+    };
+  });
+  expect(look.background).toBe("rgb(20, 17, 27)"); // --ink #14111b
+  expect(look.title).toBe("rgb(201, 164, 92)"); // --gold #c9a45c
+  expect(look.panelBorder).toBe("solid");
+  expect(look.fontVariable).toContain("Marcellus");
+});
+
 test.describe("revive and reroll rules (spec: Monetisation)", () => {
   test("free player: ads gate revives, and the third revive is refused", async ({ page }) => {
     await page.goto("./?adms=300");

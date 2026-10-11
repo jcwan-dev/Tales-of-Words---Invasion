@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.2 (10 Oct 2026)
+**Version:** Draft 1.3 (10 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.3:** Hit order details: Piercing ignores Warded (fixes the contradiction with "Warded bosses demand Piercing"); fallen units; status hooks get owner and stacks; hook lists built once at load; certain chances use no RNG; damage modifiers net out and round down; Shield damage counts for damage triggers; Thorns damage is untyped and hits Shield first; resistance on timed statuses removes turns; charges are used when the hit starts; deflected and 0-damage hits defined.
 - **1.2:** Magic is words of power: every arcane skill is a Word (spoken form + glyph + meaning), cast with one generic animation (shout, glyph appears, flies to target). Firebolt renamed 火 Huo. Stats reframed for words (Arcana = power, Intelligence = vocabulary, Wisdom = healing/warding words). Placeholder Words; compound Words as a later idea.
 - **1.1:** Technology decided: web app in TypeScript packaged with Capacitor (React, Vite, inkjs, RevenueCat, AdMob, Capgo live updates, preview links). Monetisation finalised: Ink unlocks everything; bundles £1.99 as shortcut; Premium £2.99 removes ads. Ads: revive (rewarded, max 2/run), reroll rewards (rewarded, max 3/run), end-of-run interstitial; Premium keeps the same limits. Limits enforced in the rules core. Art pipeline (one image per unit, generic animations). New Rewards screen with reroll.
 - **1.0:** Added "Architecture and development": engine-free C# rules core, data-driven content, determinism, event stream, performance budgets, test strategy, code rules, agent workflow, deployment pipeline, build milestones. Engine choice (Unity vs Godot) left pending.
@@ -214,24 +215,38 @@ Every hit (skill, Strike or enemy move) goes through the same steps:
 1. **Base value** from the skill and the attacker's stats.
 2. **Attacker modifiers:** Emboldened/Enfeebled for physical damage, Kindled/Dimmed for arcane.
 3. **Attacked triggers:** Thorns fires now, whether or not the hit lands.
-4. **Warded check:** if the target is Warded, the hit is deflected, one charge is used, and the hit stops (no damage, no statuses).
+4. **Warded check:** if the target is Warded, the hit is deflected, one charge is used, and the hit stops (no damage, no statuses). A Piercing hit is never deflected and uses no Warded charge.
 5. **Shield, then HP:** damage takes Shield first, the rest goes to HP. Piercing skips Shield.
 6. **Damage triggers:** Leeching heals the attacker; Bleeding on the target gains a stack if the hit was physical. Thorns damage is not an attack, so it never triggers Thorns or Warded back.
 7. **Statuses** carried by the skill are applied, reduced by the target's resistance stat.
 
+**Hit order details** (decided 10 Oct 2026):
+- **Damage modifiers net out, then round down.** Emboldened and Enfeebled (physical), or Kindled and Dimmed (arcane), combine as one modifier: (buff stacks − debuff stacks) × 25%. Emboldened 3 and Enfeebled 1 = +50%. The result is rounded down and is never below 0.
+- **Shield damage counts as damage.** Any damage to Shield or HP counts for damage triggers. A physical hit fully absorbed by Shield still adds a Bleeding stack. Only a target that is already Bleeding gains the stack; a hit never starts Bleeding on its own. Leeching heals up to the total damage dealt to Shield and HP.
+- **Thorns damage is untyped.** It hits the attacker's Shield first, then HP. It is neither physical nor arcane, so attacker modifiers don't apply to it. It triggers nothing: no Thorns, Warded, Leeching or Bleeding stack.
+- **A hit always finishes.** If the attacker falls to Thorns at step 3, or the target falls at step 5, the remaining steps still run; statuses on a fallen unit have no effect later.
+- **Several resisting stats** (Ambushed: Agility, Cunning): the highest one counts. A resisting stat of 2 or less has no effect (it never adds stacks).
+- **Fallen units:** a hit by or against a unit that has already fallen does nothing. A unit that falls during a hit cannot be healed by that hit (no Leeching on an attacker killed by Thorns).
+- **Order inside step 6:** Leeching first, then the Bleeding stack.
+- **Resistance on timed statuses reduces turns.** For Stunned, Paralysed and Ambushed, each point of the resisting stat above 2 removes 1 turn (minimum 1). A chance to apply (Lei's 20% Stun) is rolled first; resistance never changes the chance. Only chances strictly between 0% and 100% use the combat RNG, so certain effects never shift later rolls.
+- **Piercing ignores Warded.** A Piercing hit (the keyword on the hit, or a Piercing charge on the attacker) is never deflected, uses no Warded charge, and skips Shield. A Piercing charge is used at step 2; a hit that already has the Piercing keyword uses no charge. A Warded charge is used at step 4.
+- **A deflected hit triggers nothing after step 4:** no damage, no Leeching, no Bleeding stack, no statuses. The Warded charge is used before the deflect is reported.
+- **A hit that deals 0 damage** (e.g. after modifiers) still goes through steps 5–7, so its statuses still apply. It triggers no damage triggers (nothing was dealt).
+
 A skipped turn shows the reason as floating text over the unit ("Stunned", "Ambushed") and moves on after a short pause.
 
 ```
+// A status is a stateless definition (id, buff/debuff, decay, resisted by) plus hooks.
+// Hit hooks get the hit, the unit that owns the status, its current stacks, and the context.
 interface StatusEffect {
-  id, duration, stacks
   onApply?(unit, ctx)
-  onTurnStart?(unit, ctx)                // burning, poisoned, bleeding
-  gateAction?(unit, ctx): ActionGate     // Allow | Skip(reason) | Restrict(filter) | Redirect(action)
-  modifyOutgoing?(hit, ctx)              // emboldened, enfeebled, kindled, dimmed, piercing
-  modifyIncoming?(hit, ctx)              // warded
-  onDealtDamage?(hit, ctx)               // leeching
-  onAttacked?(hit, ctx)                  // thorns: fires even when deflected
-  onTookDamage?(hit, ctx)                // bleeding gains a stack
+  onTurnStart?(unit, ctx)                         // burning, poisoned, bleeding
+  gateAction?(unit, ctx): ActionGate              // Allow | Skip(reason) | Restrict(filter) | Redirect(action)
+  modifyOutgoing?(hit, owner, stacks, ctx)        // emboldened, enfeebled, kindled, dimmed, piercing
+  onAttacked?(hit, owner, stacks, ctx)            // thorns: fires even when deflected
+  modifyIncoming?(hit, owner, stacks, ctx)        // warded
+  onDealtDamage?(hit, owner, stacks, ctx)         // leeching
+  onTookDamage?(hit, owner, stacks, ctx)          // bleeding gains a stack
   onTurnEnd?(unit, ctx)
   onExpire?(unit, ctx)
 }
@@ -478,8 +493,8 @@ docs/adr/        architecture decision records
 
 ### Combat core design
 - **State:** `CombatState` holds the units, turn number, RNG streams and an event list. A unit holds stats, Shield, HP, its cards (max 5) and its statuses.
-- **Statuses are one entry per id with a stack count**, not one object per application. Burning 50 is a single entry. Each status definition is stateless and registered once; the instance holds only `{id, stacks, decay, source}`.
-- **Hooks are pre-sorted.** Each unit keeps, per hook (turn start, action gate, outgoing, attacked, incoming, took damage, dealt damage, turn end), the list of statuses that implement it. Dispatch only touches statuses that care.
+- **Statuses are one entry per id with a stack count**, not one object per application. Burning 50 is a single entry. Each status definition (decay type, resisting stats, hooks) is stateless and registered once; a unit holds only the stack count per id. Who applied a status is added only if a later rule needs it.
+- **Hooks are pre-sorted.** For each hook (turn start, action gate, outgoing, attacked, incoming, took damage, dealt damage, turn end), the core keeps the list of statuses that implement it, built once at load. Dispatch only touches those statuses and skips any the unit has no stacks of (ADR 0005).
 - **Statuses never name other statuses.** Cross-status logic goes through tags and queries (`countWithTag("dot")` for Afflictions), so adding a status never means editing another.
 - **The hit pipeline is a fixed list of stages** matching the hit order in this spec. New behaviour adds a hook or an effect, not a stage, unless an ADR says otherwise.
 - **Recursion guard:** triggers caused by triggers are capped per hit (for example depth 4), so a bad content combination can't loop forever.
