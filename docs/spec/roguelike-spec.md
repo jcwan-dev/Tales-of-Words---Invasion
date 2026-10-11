@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.3 (10 Oct 2026)
+**Version:** Draft 1.4 (11 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.4:** Stun and paralysis are build-up meters: Stun power (applied every hit, −1 per turn, full again each fight) and Paralysis power (applied once per attack, never drops) fill the target's meter; at 10 stacks the target loses its next turn (Stunned) or has a 50% chance to (Paralysed), then the meter resets. No immunity turn. Lei gives Stunned 4, Bing Paralysed 3. Turn order (higher Agility side first), cooldown meaning, turn details defined.
 - **1.3:** Hit order details: Piercing ignores Warded (fixes the contradiction with "Warded bosses demand Piercing"); fallen units; status hooks get owner and stacks; hook lists built once at load; certain chances use no RNG; damage modifiers net out and round down; Shield damage counts for damage triggers; Thorns damage is untyped and hits Shield first; resistance on timed statuses removes turns; charges are used when the hit starts; deflected and 0-damage hits defined.
 - **1.2:** Magic is words of power: every arcane skill is a Word (spoken form + glyph + meaning), cast with one generic animation (shout, glyph appears, flies to target). Firebolt renamed 火 Huo. Stats reframed for words (Arcana = power, Intelligence = vocabulary, Wisdom = healing/warding words). Placeholder Words; compound Words as a later idea.
 - **1.1:** Technology decided: web app in TypeScript packaged with Capacitor (React, Vite, inkjs, RevenueCat, AdMob, Capgo live updates, preview links). Monetisation finalised: Ink unlocks everything; bundles £1.99 as shortcut; Premium £2.99 removes ads. Ads: revive (rewarded, max 2/run), reroll rewards (rewarded, max 3/run), end-of-run interstitial; Premium keeps the same limits. Limits enforced in the rules core. Art pipeline (one image per unit, generic animations). New Rewards screen with reroll.
@@ -187,8 +188,8 @@ These exist only to build and test the system until the wiki defines the real vo
 | Glyph | Spoken | Meaning | Effect (suggestion) | Scales with |
 |---|---|---|---|---|
 | 火 | Huo | Fire | 3 arcane damage, Burning 2 | +3 per Arcana |
-| 冰 | Bing | Ice | 4 arcane damage, 25% chance of Paralysed | +2 per Arcana |
-| 雷 | Lei | Thunder | 6 arcane damage, 20% chance of Stunned | +3 per Arcana |
+| 冰 | Bing | Ice | 4 arcane damage, Paralysed 3 | +2 per Arcana |
+| 雷 | Lei | Thunder | 6 arcane damage, Stunned 4 | +3 per Arcana |
 | 盾 | Dun | Shield | Warded 1 and restore 4 Shield | +2 Shield per Wisdom |
 | 愈 | Yu | Heal | Heal 4 | +3 per Wisdom |
 
@@ -205,10 +206,35 @@ Statuses change whether a unit acts, how hard it hits, and what happens when it 
 
 ### Turn pipeline
 1. **Turn start:** statuses run start hooks (bleed and burn damage, regeneration).
-2. **Action gate:** each status returns allow, skip (with reason), restrict (a filter on usable cards) or redirect (a forced action, e.g. confusion picks a random card). Skip beats restrict, restrict beats allow.
+2. **Action gate:** each status returns allow, skip (with reason), restrict (a filter on usable cards) or redirect (a forced action, e.g. confusion picks a random card). Skip beats redirect, redirect beats restrict, restrict beats allow.
 3. **Action:** if not skipped, the player picks a card that passes the filter, or ends the turn. Enemies pick from their move list the same way.
 4. **Resolve:** skill effects run; each hit follows the hit order below.
-5. **Turn end:** cooldowns tick down, **including on skipped turns**. Status durations go down; expired ones are removed.
+5. **Turn end:** cooldowns tick down, **including on skipped turns**. Ticking statuses lose a stack; ones at 0 are removed (details below).
+
+**Turn details** (decided 11 Oct 2026):
+- **Fight start:** every unit's Shield refills to full and its Stun power goes back to full (see "Stun and paralysis").
+- **Turn order:** the side with the higher Agility acts first: the player's Agility against the highest Agility among the enemies. Ties go to the player. Then turns alternate: the player, then each living enemy in order, then the player again. One pass through all living units is a **round**.
+- **Turn start, in order:** damage over time ticks (Burning, then Bleeding, then Poisoned). Each deals damage equal to its stacks, then loses 1 stack. Burning and Bleeding hit Shield first; Poisoned goes straight to HP. This damage is not an attack: it triggers no Thorns, Warded, Leeching or Bleeding stack. A unit that falls here takes no action and its turn ends.
+- **Action gate:** checked after turn-start damage. Ambushed, then Stunned 10+, then Paralysed 10+ (see "Stun and paralysis"). A turn that is already lost doesn't check the others: their stacks stay for the next turn. A lost turn still runs turn end.
+- **Cooldowns:** a skill with cooldown N can't be used on its owner's next N turns. Cooldown 1: used on turn 1, not ready on turn 2, ready on turn 3. Counters go down at the end of each of the owner's turns, skipped turns included, except on the turn the skill was used.
+- **Turn end, in order:** cooldowns tick; ticking statuses other than damage over time lose 1 stack (Emboldened, Enfeebled, Kindled, Dimmed, Thorns, Leeching); the unit's Stun power drops by 1 (minimum 0).
+- **The fight ends** as soon as every unit on one side has fallen, checked after every hit and every damage-over-time tick. If both sides fall in the same hit, the enemies win: a fallen player always reaches the death screen (and its revive).
+- **Falling during your own turn:** a unit that falls to damage over time takes no action; its remaining damage-over-time statuses don't tick and its turn ends at once, without turn-end effects. A unit that falls during its action (to Thorns) also skips its turn-end effects.
+- **Ambushed N:** each stack is one lost turn at the start of the fight, used when it causes a skip. The encounter usually applies Ambushed 1.
+- **Between fights:** statuses and meters don't carry over. Each fight starts with only the statuses that items, the path and the encounter give.
+
+### Stun and paralysis
+Stunning and paralysing are builds. Many sources can give them (weapons, items, skills, Words, companions), and they add up.
+- **Stun power X** (a unit attribute): every hit the unit lands adds X Stunned stacks to the target. A two-hit attack adds it twice. Stun power drops by 1 at the end of each of the unit's turns (minimum 0) and is back to full at the start of every fight.
+- **Paralysis power X** (a unit attribute): every attack (a skill or Strike use, whatever its number of hits) adds X Paralysed stacks to the target once, if at least one of its hits landed. Paralysis power never drops.
+- Skills and Words can also add a fixed number of stacks, like any status (Lei: Stunned 4 on each hit).
+- **The meters:** Stunned and Paralysed stacks never decay on their own. At the target's action gate:
+  - **Stunned 10 or more:** the target loses that turn, and Stunned resets to 0.
+  - **Paralysed 10 or more:** 50% chance to lose that turn; Paralysed resets to 0 either way.
+- **Resistance** works as for every status: Vitality against Stunned, Wisdom against Paralysed; each point above 2 removes 1 stack from each application (minimum 1).
+- Stacks follow the hit rules: a deflected hit adds none; a 0-damage hit still adds them; Stun power 0 adds nothing. Stun power is added at step 7, after the hit's own statuses, even if the target fell during that hit (as for every status). Paralysis power is added after the attack's last hit, and not if the attacker or the target has fallen by then.
+- Example: Stun 7 against a Vitality 2 enemy, one hit per turn: +7 (7), +6 (13, so the enemy loses its next turn and resets to 0), then +5, +4, +3 (12, stunned again).
+- Example: Paralysis 2, one attack per turn: after 5 attacks the enemy has 10 stacks, rolls 50% on its next turn, resets to 0 and the build-up starts again.
 
 ### Hit order
 Every hit (skill, Strike or enemy move) goes through the same steps:
@@ -228,7 +254,7 @@ Every hit (skill, Strike or enemy move) goes through the same steps:
 - **Several resisting stats** (Ambushed: Agility, Cunning): the highest one counts. A resisting stat of 2 or less has no effect (it never adds stacks).
 - **Fallen units:** a hit by or against a unit that has already fallen does nothing. A unit that falls during a hit cannot be healed by that hit (no Leeching on an attacker killed by Thorns).
 - **Order inside step 6:** Leeching first, then the Bleeding stack.
-- **Resistance on timed statuses reduces turns.** For Stunned, Paralysed and Ambushed, each point of the resisting stat above 2 removes 1 turn (minimum 1). A chance to apply (Lei's 20% Stun) is rolled first; resistance never changes the chance. Only chances strictly between 0% and 100% use the combat RNG, so certain effects never shift later rolls.
+- **Resistance on timed statuses reduces turns.** For timed statuses (Ambushed), each point of the resisting stat above 2 removes 1 turn (minimum 1). Stunned and Paralysed are build-up meters and lose stacks like any status. A chance to apply is rolled first; resistance never changes the chance. Only chances strictly between 0% and 100% use the combat RNG, so certain effects never shift later rolls.
 - **Piercing ignores Warded.** A Piercing hit (the keyword on the hit, or a Piercing charge on the attacker) is never deflected, uses no Warded charge, and skips Shield. A Piercing charge is used at step 2; a hit that already has the Piercing keyword uses no charge. A Warded charge is used at step 4.
 - **A deflected hit triggers nothing after step 4:** no damage, no Leeching, no Bleeding stack, no statuses. The Warded charge is used before the deflect is reported.
 - **A hit that deals 0 damage** (e.g. after modifiers) still goes through steps 5–7, so its statuses still apply. It triggers no damage triggers (nothing was dealt).
@@ -240,14 +266,14 @@ A skipped turn shows the reason as floating text over the unit ("Stunned", "Ambu
 // Hit hooks get the hit, the unit that owns the status, its current stacks, and the context.
 interface StatusEffect {
   onApply?(unit, ctx)
-  onTurnStart?(unit, ctx)                         // burning, poisoned, bleeding
-  gateAction?(unit, ctx): ActionGate              // Allow | Skip(reason) | Restrict(filter) | Redirect(action)
+  onTurnStart?(owner, stacks, ctx)                // burning, bleeding, poisoned (in that order)
+  gateAction?(owner, stacks, ctx): ActionGate     // Allow | Skip(reason) | Restrict(filter) | Redirect(action)
   modifyOutgoing?(hit, owner, stacks, ctx)        // emboldened, enfeebled, kindled, dimmed, piercing
   onAttacked?(hit, owner, stacks, ctx)            // thorns: fires even when deflected
   modifyIncoming?(hit, owner, stacks, ctx)        // warded
   onDealtDamage?(hit, owner, stacks, ctx)         // leeching
   onTookDamage?(hit, owner, stacks, ctx)          // bleeding gains a stack
-  onTurnEnd?(unit, ctx)
+  onTurnEnd?(owner, stacks, ctx)                  // ticking statuses lose a stack
   onExpire?(unit, ctx)
 }
 
@@ -258,8 +284,7 @@ function runTurn(unit, ctx) {
   else if (gate.redirect) resolve(gate.redirect, ctx)
   else                    resolve(await chooseAction(unit, gate.filter), ctx)  // may be "end turn"
   unit.cards.tickCooldowns()             // always, even when skipped
-  each(unit.statuses, s => s.onTurnEnd?.(unit, ctx))
-  unit.statuses.tickDurations()
+  each(unit.statuses, s => s.onTurnEnd?.(unit, ctx))   // ticking statuses lose a stack; Stun power −1
 }
 ```
 
@@ -273,8 +298,8 @@ Proposed names for the first set; numbers are starting values for playtesting.
 | Poisoned | Debuff | Same, but goes straight to HP, ignoring Shield. | Turn start | Vitality |
 | Bleeding | Debuff | Same, hits Shield first. +1 stack each time the unit takes a physical hit. | Turn start, took damage | Vitality |
 | **Lost turns** | | | | |
-| Stunned | Debuff | Skip the next turn. Can't be stunned again for 1 turn after. | Action gate | Vitality |
-| Paralysed | Debuff | 50% chance to skip each turn while it lasts (2 turns). | Action gate | Wisdom |
+| Stunned | Debuff | Build-up meter. At 10+ stacks the unit loses its next turn and the meter resets to 0. Filled by Stun power on every hit, or by skills. | Action gate | Vitality |
+| Paralysed | Debuff | Build-up meter. At 10+ stacks the unit has a 50% chance to lose its next turn, then the meter resets to 0. Filled by Paralysis power once per attack, or by skills. | Action gate | Wisdom |
 | Ambushed | Debuff | Skip the first turn of combat. Applied by the encounter. | Action gate | Agility, Cunning (spot it in the event before) |
 | **Damage modifiers** (last N turns) | | | | |
 | Enfeebled | Debuff | Physical damage dealt −25%. | Outgoing hit | Vitality |
@@ -298,9 +323,10 @@ Stacking statuses is the main way to build something overpowered, and that's int
 - **Three ways stacks run out** (set per status in data):
   - *Ticking:* −1 stack at end of each turn. DoTs, Emboldened, Enfeebled, Kindled, Dimmed, Thorns, Leeching. Damage modifiers are ±25% per stack (Emboldened 3 = +75% this turn, +50% next).
   - *Charges:* −1 per use. Warded (per deflect), Piercing (per hit).
-  - *Timed:* lasts N turns, no intensity. Stunned, Paralysed, Ambushed.
+  - *Timed:* lasts N turns, no intensity. Ambushed.
+  - *Build-up:* never decays; triggers at 10 stacks, then resets to 0. Stunned, Paralysed (see "Stun and paralysis").
 - **Resistance** lowers stacks applied, not the chance: each point of the resisting stat above 2 removes 1 stack from an incoming application (minimum 1).
-- **Lost turns can't chain forever:** after a Stunned or Paralysed turn, the unit is immune to both for 1 turn. The one hard limit.
+- **Lost turns can't chain forever:** the meters reset to 0 after they trigger, and Stun power drops every turn, so another lost turn always needs a new build-up. There is no immunity turn.
 - Enemies follow the same rules (Thorns enemies punish multi-hit; Warded bosses demand Piercing).
 
 ### Synergy effects
@@ -562,7 +588,7 @@ The rules on ads and limits are product rules, so they live where nothing can by
 - **Invariant tests** (fast-check): thousands of random seeded fights and runs, checking rules that must always hold:
   - HP never above max; Shield and stacks never negative;
   - Thorns never triggers Thorns; trigger depth never above the cap;
-  - cooldowns tick on skipped turns; stunned units are immune the turn after;
+  - cooldowns tick on skipped turns; Stunned and Paralysed reset to 0 when they trigger;
   - **never more than 2 revives or 3 rerolls in a run, premium or not**;
   - same seed and commands give the same event log.
 - **Replay tests:** saved seeds and commands with their recorded result. Any change is flagged, so balance never changes by accident.

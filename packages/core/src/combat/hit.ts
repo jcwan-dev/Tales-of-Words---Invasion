@@ -1,10 +1,13 @@
 import type { Scaling } from "../content/types.ts";
 import type { StatBlock } from "../model/stats.ts";
-import { addStacks, applyDamage, reportDamage } from "./actions.ts";
+import { applyDamage, reportDamage } from "./actions.ts";
+import { applyStatus } from "./apply-status.ts";
 import type { CombatContext } from "./context.ts";
 import type { CombatEvent } from "./events.ts";
 import type { HitSpec, HitState } from "./hit-state.ts";
-import { HIT_HOOKS, statusDef, type HookEntry } from "./statuses/registry.ts";
+import { checkFightEnd } from "./state.ts";
+import { HIT_HOOKS, STUN_POWER_STATUS, type HookEntry } from "./statuses/registry.ts";
+import type { HitHook } from "./statuses/types.ts";
 import type { CombatUnit } from "./unit.ts";
 
 // The hit pipeline (spec: Hit order, ADR 0005). A fixed list of seven steps; statuses take part
@@ -13,8 +16,6 @@ import type { CombatUnit } from "./unit.ts";
 
 /** Each damage-modifier step is 25%, i.e. 1/4 of the base value. */
 const MODIFIER_STEPS_PER_WHOLE = 4;
-/** A resisting stat above this removes 1 stack (or turn) per point (spec: Stacking). */
-const RESIST_THRESHOLD = 2;
 
 /** Step 1: base value = amount + Σ per × the attacker's stat. */
 export function baseValue(amount: number, scaling: readonly Scaling[] | undefined, stats: StatBlock): number {
@@ -70,7 +71,7 @@ function acquire(attacker: CombatUnit, target: CombatUnit, hit: HitSpec): HitSta
 }
 
 /** Runs one hook point for the statuses `owner` has. */
-function dispatch(list: readonly HookEntry[], h: HitState, owner: CombatUnit, ctx: CombatContext): void {
+function dispatch(list: readonly HookEntry<HitHook>[], h: HitState, owner: CombatUnit, ctx: CombatContext): void {
   for (let i = 0; i < list.length; i++) {
     const entry = list[i];
     if (entry === undefined) continue;
@@ -79,42 +80,31 @@ function dispatch(list: readonly HookEntry[], h: HitState, owner: CombatUnit, ct
   }
 }
 
-/** Step 7: chance (rolled first), then resistance, then the stacks are added. */
+/**
+ * Step 7: the hit's statuses, then the attacker's Stun power (spec: Stun and paralysis), each an
+ * application with its own chance roll and resistance.
+ */
 function applyStatuses(ctx: CombatContext, h: HitState, hit: HitSpec): void {
-  const apps = hit.statuses;
-  if (apps === undefined) return;
   const target = h.target;
-  for (let i = 0; i < apps.length; i++) {
-    const app = apps[i];
-    if (app === undefined || app.stacks <= 0) continue;
-    const chance = app.chance ?? 1;
-    // Certain outcomes use no roll, so chance-free hits never shift the combat stream.
-    const lands = chance >= 1 ? true : chance <= 0 ? false : ctx.rng.chance(chance);
-    if (!lands) {
-      ctx.events.push({ type: "StatusMissed", unit: target.id, status: app.status });
-      continue;
+  const apps = hit.statuses;
+  if (apps !== undefined) {
+    for (let i = 0; i < apps.length; i++) {
+      const app = apps[i];
+      if (app !== undefined) applyStatus(ctx, target, app.status, app.stacks, app.chance ?? 1);
     }
-    const resistedBy = statusDef(app.status).resistedBy;
-    let resist = 0;
-    for (let r = 0; r < resistedBy.length; r++) {
-      const stat = resistedBy[r];
-      if (stat === undefined) continue;
-      const points = target.stats[stat] - RESIST_THRESHOLD;
-      if (points > resist) resist = points;
-    }
-    const maxRemoved = app.stacks - 1;
-    const removed = resist < maxRemoved ? resist : maxRemoved;
-    if (removed > 0) ctx.events.push({ type: "StatusResisted", unit: target.id, status: app.status, removed });
-    addStacks(ctx, target, app.status, removed > 0 ? app.stacks - removed : app.stacks);
   }
+  const stunPower = h.attacker.stunPower;
+  if (stunPower > 0) applyStatus(ctx, target, STUN_POWER_STATUS, stunPower, 1);
 }
 
 /**
  * Resolves one hit from `attacker` on `target` through the seven steps of the hit order,
- * appending events to `ctx.events`. A hit by or against a fallen unit does nothing.
+ * appending events to `ctx.events`. A hit by or against a fallen unit does nothing. If the hit
+ * fells a unit and the context belongs to a fight, the fight-end check runs after step 7.
+ * Returns true if the hit landed (it was resolved and not deflected).
  */
-export function resolveHit(ctx: CombatContext, attacker: CombatUnit, target: CombatUnit, hit: HitSpec): void {
-  if (attacker.fallen || target.fallen) return;
+export function resolveHit(ctx: CombatContext, attacker: CombatUnit, target: CombatUnit, hit: HitSpec): boolean {
+  if (attacker.fallen || target.fallen) return false;
   const h = acquire(attacker, target, hit);
   depth++;
   try {
@@ -141,31 +131,41 @@ export function resolveHit(ctx: CombatContext, attacker: CombatUnit, target: Com
     dispatch(HIT_HOOKS.modifyIncoming, h, target, ctx);
     if (h.deflected) {
       ctx.events.push({ type: "HitDeflected", attacker: attacker.id, target: target.id });
-      return;
+    } else {
+      resolveLandedHit(ctx, h, hit);
     }
-    // 5. Shield, then HP (Piercing skips Shield).
-    const out = h.scratch;
-    applyDamage(target, h.value, h.piercing, out);
-    h.shieldDamage = out.shield;
-    h.hpDamage = out.hp;
-    ctx.events.push({
-      type: "DamageDealt",
-      attacker: attacker.id,
-      target: target.id,
-      damageType: hit.damageType,
-      shieldDamage: out.shield,
-      hpDamage: out.hp,
-      piercing: h.piercing,
-    });
-    reportDamage(ctx, target, out);
-    // 6. Damage triggers, only when damage was dealt: attacker first (Leeching), then target (Bleeding).
-    if (h.shieldDamage + h.hpDamage > 0) {
-      dispatch(HIT_HOOKS.onDealtDamage, h, attacker, ctx);
-      dispatch(HIT_HOOKS.onTookDamage, h, target, ctx);
-    }
-    // 7. Statuses carried by the hit.
-    applyStatuses(ctx, h, hit);
+    // Only Thorns (step 3) or the hit itself (step 5) can fell a unit here.
+    if (attacker.fallen || target.fallen) checkFightEnd(ctx);
+    return !h.deflected;
   } finally {
     depth--;
   }
+}
+
+/** Steps 5-7 of a hit that was not deflected. */
+function resolveLandedHit(ctx: CombatContext, h: HitState, hit: HitSpec): void {
+  const attacker = h.attacker;
+  const target = h.target;
+  // 5. Shield, then HP (Piercing skips Shield).
+  const out = h.scratch;
+  applyDamage(target, h.value, h.piercing, out);
+  h.shieldDamage = out.shield;
+  h.hpDamage = out.hp;
+  ctx.events.push({
+    type: "DamageDealt",
+    attacker: attacker.id,
+    target: target.id,
+    damageType: hit.damageType,
+    shieldDamage: out.shield,
+    hpDamage: out.hp,
+    piercing: h.piercing,
+  });
+  reportDamage(ctx, target, out);
+  // 6. Damage triggers, only when damage was dealt: attacker first (Leeching), then target (Bleeding).
+  if (h.shieldDamage + h.hpDamage > 0) {
+    dispatch(HIT_HOOKS.onDealtDamage, h, attacker, ctx);
+    dispatch(HIT_HOOKS.onTookDamage, h, target, ctx);
+  }
+  // 7. Statuses carried by the hit, then Stun power.
+  applyStatuses(ctx, h, hit);
 }

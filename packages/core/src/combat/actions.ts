@@ -55,3 +55,10 @@ export function useCharge(ctx: CombatContext, unit: CombatUnit, status: StatusId
   unit.statuses.remove(status, 1);
   ctx.events.push({ type: "ChargeUsed", unit: unit.id, status, left: unit.statuses.stacks(status) });
 }
+
+/** Removes stacks; emits StatusRemoved when that takes the status to 0. */
+export function removeStacks(ctx: CombatContext, unit: CombatUnit, status: StatusId, stacks: number): void {
+  if (stacks <= 0 || !unit.statuses.has(status)) return;
+  unit.statuses.remove(status, stacks);
+  if (!unit.statuses.has(status)) ctx.events.push({ type: "StatusRemoved", unit: unit.id, status });
+}

@@ -1,4 +1,5 @@
 import type { DamageType, StatusId } from "../content/types.ts";
+import type { Side } from "./unit.ts";
 
 /**
  * The event log is the single output of combat (spec: Combat core design): the UI animates it,
@@ -26,6 +27,19 @@ export type CombatEvent =
   /** A charge (Piercing, Warded...) was used. */
   | { type: "ChargeUsed"; unit: string; status: StatusId; left: number }
   /** HP reached 0 (once per unit). */
-  | { type: "UnitFell"; unit: string };
+  | { type: "UnitFell"; unit: string }
+  // Turns (M1.2)
+  /** `order` is the turn order for the whole fight. */
+  | { type: "CombatStarted"; order: readonly string[] }
+  | { type: "TurnStarted"; unit: string; round: number }
+  /** Damage over time at turn start; not an attack. */
+  | { type: "DotDamage"; unit: string; status: StatusId; shieldDamage: number; hpDamage: number }
+  /** A build-up meter reached its threshold at the action gate and reset to 0; `lostTurn` is the outcome. */
+  | { type: "MeterTriggered"; unit: string; status: StatusId; lostTurn: boolean }
+  | { type: "TurnSkipped"; unit: string; reason: StatusId }
+  /** Stacks reached 0 through decay, a meter reset or a used Ambushed stack. */
+  | { type: "StatusRemoved"; unit: string; status: StatusId }
+  | { type: "TurnEnded"; unit: string }
+  | { type: "CombatEnded"; winner: Side };
 
 export type CombatEventType = CombatEvent["type"];

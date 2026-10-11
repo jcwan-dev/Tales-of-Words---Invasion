@@ -693,7 +693,8 @@ describe("Hit order step 7: statuses carried by the hit", () => {
     expect(t.statuses.stacks("enfeebled")).toBe(2);
   });
 
-  it("timed statuses can be applied: stacks are turns", () => {
+  it("build-up meters (Stunned, Paralysed) can be applied: stacks fill the meter", () => {
+    // Spec 1.4, Stun and paralysis: "Skills and Words can also add a fixed number of stacks, like any status."
     const ctx = ctxFor();
     const t = targetUnit();
     resolveHit(ctx, attackerUnit(), t, arc(1, { statuses: [{ status: "stunned", stacks: 1 }, { status: "paralysed", stacks: 2 }] }));
@@ -841,7 +842,7 @@ describe("Hit order step 7: chance to apply (rolled on the combat RNG)", () => {
     }
   });
 
-  it("chance 0.25 (Lei-style) applies about a quarter of the time across seeds", () => {
+  it("chance 0.25 applies about a quarter of the time across seeds", () => {
     let applied = 0;
     const n = 1000;
     for (let i = 0; i < n; i++) {
@@ -969,7 +970,7 @@ describe("Hit order step 7: resistance", () => {
       expect(eventsOf(low.ctx.events, "StatusApplied")).toEqual([{ type: "StatusApplied", unit: "t", status: "enfeebled", stacks: 3, total: 3 }]);
       expect(eventsOf(low.ctx.events, "StatusResisted")).toEqual([]);
     }
-    // Timed status, and several resisting stats both low (Ambushed: Agility 0, Cunning 1).
+    // Build-up meter (Stunned), and a timed status with several resisting stats both low (Ambushed: Agility 0, Cunning 1).
     expect(applyTo({ vitality: 0 }, "stunned", 2).t.statuses.stacks("stunned")).toBe(2);
     expect(applyTo({ agility: 0, cunning: 1 }, "ambushed", 2).t.statuses.stacks("ambushed")).toBe(2);
   });
@@ -989,14 +990,27 @@ describe("Hit order step 7: resistance", () => {
     expect(applyTo({ agility: 5, cunning: 1 }, "ambushed", 6).t.statuses.stacks("ambushed")).toBe(3);
   });
 
-  it("Resistance on timed statuses reduces turns (Stunned 3 vs Vitality 4 -> 1 turn; Paralysed 2 vs Wisdom 3 -> 1)", () => {
-    // Vitality 4: remove 2 turns; 3 - 2 = 1
+  it("Resistance on timed statuses reduces turns (Ambushed 3 vs Agility 4 -> 1 turn; minimum 1)", () => {
+    // Agility 4 (Cunning 2): remove 2 turns; 3 - 2 = 1
+    const a = applyTo({ agility: 4 }, "ambushed", 3);
+    expect(a.t.statuses.stacks("ambushed")).toBe(1);
+    expect(eventsOf(a.ctx.events, "StatusResisted")).toEqual([{ type: "StatusResisted", unit: "t", status: "ambushed", removed: 2 }]);
+    // Minimum 1 turn: Ambushed 2 vs Cunning 7 -> would remove 5 -> 1 left
+    expect(applyTo({ cunning: 7 }, "ambushed", 2).t.statuses.stacks("ambushed")).toBe(1);
+  });
+
+  it("Stunned and Paralysed are build-up meters and lose stacks like any status (Stunned 3 vs Vitality 4 -> 1; Paralysed 5 vs Wisdom 3 -> 4)", () => {
+    // Vitality 4: remove 2 stacks; 3 - 2 = 1
     const s = applyTo({ vitality: 4 }, "stunned", 3);
     expect(s.t.statuses.stacks("stunned")).toBe(1);
     expect(eventsOf(s.ctx.events, "StatusResisted")).toEqual([{ type: "StatusResisted", unit: "t", status: "stunned", removed: 2 }]);
-    // Wisdom 3: remove 1 turn; 2 - 1 = 1
-    expect(applyTo({ wisdom: 3 }, "paralysed", 2).t.statuses.stacks("paralysed")).toBe(1);
-    // Minimum 1 turn
+    // Stunned 9 vs Vitality 5: remove 3 stacks; 9 - 3 = 6
+    expect(applyTo({ vitality: 5 }, "stunned", 9).t.statuses.stacks("stunned")).toBe(6);
+    // Wisdom 3: remove 1 stack; 5 - 1 = 4
+    const p = applyTo({ wisdom: 3 }, "paralysed", 5);
+    expect(p.t.statuses.stacks("paralysed")).toBe(4);
+    expect(eventsOf(p.ctx.events, "StatusResisted")).toEqual([{ type: "StatusResisted", unit: "t", status: "paralysed", removed: 1 }]);
+    // Minimum 1 stack: Stunned 2 vs Vitality 7
     expect(applyTo({ vitality: 7 }, "stunned", 2).t.statuses.stacks("stunned")).toBe(1);
   });
 
@@ -1099,12 +1113,13 @@ describe("Hit order: event order for a full hit", () => {
 });
 
 describe("Status list (metadata used by the hit)", () => {
-  const cases: [StatusId, "buff" | "debuff", "ticking" | "charges" | "timed", StatId[]][] = [
+  // Spec 1.4, Stacking: Stunned and Paralysed are build-up meters (decay kind "buildup"); Ambushed is the only timed status.
+  const cases: [StatusId, "buff" | "debuff", "ticking" | "charges" | "timed" | "buildup", StatId[]][] = [
     ["burning", "debuff", "ticking", ["arcana"]],
     ["poisoned", "debuff", "ticking", ["vitality"]],
     ["bleeding", "debuff", "ticking", ["vitality"]],
-    ["stunned", "debuff", "timed", ["vitality"]],
-    ["paralysed", "debuff", "timed", ["wisdom"]],
+    ["stunned", "debuff", "buildup", ["vitality"]],
+    ["paralysed", "debuff", "buildup", ["wisdom"]],
     ["ambushed", "debuff", "timed", ["agility", "cunning"]],
     ["enfeebled", "debuff", "ticking", ["vitality"]],
     ["dimmed", "debuff", "ticking", ["wisdom"]],

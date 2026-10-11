@@ -24,9 +24,8 @@
     {
       "type": "status",
       "status": "paralysed",
-      "stacks": 1,
-      "target": "enemy",
-      "chance": 0.25
+      "stacks": 3,
+      "target": "enemy"
     }
   ]
 }
