@@ -177,6 +177,8 @@ function runHit(
         if (n > 0) {
           target.statuses.remove(consumeStatus, n);
           ctx.events.push({ type: "Consumed", unit: target.id, status: consumeStatus, stacks: n });
+          // Like every other way a status reaches 0 (decay, meters), a consume that empties it reports it.
+          if (!target.statuses.has(consumeStatus)) ctx.events.push({ type: "StatusRemoved", unit: target.id, status: consumeStatus });
         }
       }
     }

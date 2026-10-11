@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.6 (11 Oct 2026)
+**Version:** Draft 1.7 (11 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.7:** No energy: one action per turn (Strike, one ready skill incl. the companion's, or pass); skill costs removed; cooldowns are the only limit. Cards in combat (target choice, multi-hit damage effects). Enemy moves: weighted, with cooldowns, one per turn, picked in advance so the intent is exact.
 - **1.6:** Consume effects can set a cap (eat up to N stacks). Slow decay names the statuses it slows (by id or tag) and whose (own or the other side's). New decay floors: a status never decays below a minimum (Glutton's Path).
 - **1.5:** Damage-over-time powers: Bleed power (every hit), Burn power and Poison power (once per attack) from any source; Bleed power replaces the old "+1 Bleeding on a physical hit". Synergies defined: Afflictions and stack-count scaling, consume (a normal hit, stacks kept if deflected), convert triggers with a recursion cap of 4, slow decay (enemy DoTs lose stacks every other round).
 - **1.4:** Stun and paralysis are build-up meters: Stun power (applied every hit, −1 per turn, full again each fight) and Paralysis power (applied once per attack, never drops) fill the target's meter; at 10 stacks the target loses its next turn (Stunned) or has a 50% chance to (Paralysed), then the meter resets. No immunity turn. Lei gives Stunned 4, Bing Paralysed 3. Turn order (higher Agility side first), cooldown meaning, turn details defined.
@@ -18,7 +19,7 @@ A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormad
 - **0.9:** Stacking rules (unlimited stacks; ticking, charge and timed decay; resistance lowers stacks applied). Thorns now fires on being attacked, even when Warded deflects. Synergy effects (Afflictions, consume, convert, slow decay) and example OP builds. Poisoned and Bleeding twists confirmed.
 - **0.8:** Two life bars for every unit: Shield (hit first, refills each fight) and HP (carries over). Armor, accessories and some weapons give Shield and HP. Full named status list (Burning, Poisoned, Bleeding, Stunned, Paralysed, Ambushed, Enfeebled, Dimmed, Emboldened, Kindled, Warded, Thorns, Leeching, Piercing). Damage typed physical or arcane. Hit order defined. Hidden merged into Warded; Dirty Trick now applies Enfeebled.
 - **0.7:** Max 5 skills total (Strike and companion skill included); gaining one when full means forgetting one or leaving the new one. Strike is the only no-cooldown skill and can be forgotten. Intelligence no longer gives a skill slot (gives an extra option when offered skills). New modular turn pipeline and status system (stun, paralysis, ambush, silence, etc.). New "Learning a skill" screen.
-- **0.6:** Combat screen redesigned for portrait: arena on top (character and companion left vs enemy right), floating damage/heal/effect text from each head, intent line, character panel with HP/armor/energy and buff/debuff chips, skill cards along the bottom.
+- **0.6:** Combat screen redesigned for portrait: arena on top (character and companion left vs enemy right), floating damage/heal/effect text from each head, intent line, character panel with HP/armor and buff/debuff chips, skill cards along the bottom.
 - **0.5:** Slots redefined. Character = 2 favoured stats that level faster (+2 vs +1) and event triggers (via tags). Companions = special skill and event triggers. Weapon = flat stat bonus and basic attack (no cooldown). Armor = stats and/or HP. Accessory = flexible (skill, stats, HP). Starting technique pick added (1 of 3 before Act I). All characters start at 2 in every stat, 3 in favoured.
 - **0.4:** Each skill now scales with its own stats (not its item's). Skills are the combat actions, plus a free default attack (Strike) from the weapon. Starting skills: 1 each from character, weapon, armor, accessory. Items no longer have primary/secondary stats; the weapon's Strike scales with the weapon's stat.
 - **0.3:** Three affinities replaced by seven stats: Might, Vitality, Cunning, Agility, Arcana, Intelligence, Wisdom. Items now have a primary and an optional secondary stat. Act-end stat raises added.
@@ -105,31 +106,47 @@ Seffira, Viskan and Lina are not playable. They are legendary figures of the wor
 
 ## Skills
 - Skills are the combat actions, shown as cards. **A player holds at most 5.** Every skill counts: the weapon's Strike, the companion's skill, the starting technique and everything learned.
-- **Strike** (weapon basic attack) is the only skill with no cooldown and no energy cost. Every other skill has a cooldown of at least 1 turn.
+- **One action per turn.** On your turn you do exactly one thing: Strike, use one ready skill (the companion's skill included), or pass. There is no energy and skills have no cost; cooldowns are the only limit.
+- **Strike** (weapon basic attack) is the only skill with no cooldown, so it is always available as your action. Every other skill has a cooldown of at least 1 turn.
 - **Gaining a skill when full:** the new card is shown above the current five. The player forgets one current skill or leaves the new one. Forgetting is permanent for the run.
-- **Strike can be forgotten.** A player can run only cooldown skills, risking turns where nothing is ready; then the only option is End turn. The game warns once before Strike is dropped.
+- **Strike can be forgotten.** A player can run only cooldown skills, risking turns where nothing is ready; then the only option is to pass. The game warns once before Strike is dropped.
 - Changing weapon mid-run offers the new weapon's Strike as a new skill through the same choice. The weapon's stat bonus applies either way.
 - Forgetting the companion's skill doesn't make them leave; they keep their event triggers. If they leave, their skill goes with them and frees the slot.
 - Sources: accessory (if it gives one), companion, a **starting technique** (pick 1 of 3 before Act I, weighted to favoured stats), scrolls, trainers in events, merchants, level-ups, boss rewards.
 - Each skill lists its own scaling stats (one or two) with a value per point. The card shows the current number from your stats.
-- Skills cost energy (3 per turn) on top of their cooldown.
-- A skill is a list of effects built from a small set of building blocks: damage (physical or arcane), heal, restore Shield, apply status, draw energy, summon, modify enemy intent. New skills are new data, not new code.
+- A skill is a list of effects built from a small set of building blocks: damage (physical or arcane, with a number of hits), heal, restore Shield, apply status, consume, summon, modify enemy intent. Each effect targets the user, the chosen enemy, or all enemies. New skills are new data, not new code.
 - Upgrades (e.g. "Cleave+") are separate entries pointing to their base skill; an upgrade can lower the cooldown.
 
+### Cards in combat (decided 11 Oct 2026)
+- **A unit's cards** are its skills for the fight, at most 5 for the player. Each card is ready or on cooldown (see "Turn details": cooldown N means N turns of waiting).
+- **Using a card** is the turn's one action. It must be ready and allowed by the action gate (a restrict filter can forbid it). The player chooses an enemy target for effects that target "the chosen enemy"; with one enemy it is chosen automatically. Effects run in the card's order; each damage effect is one attack of 1 or more hits (Twin Knives: 2). Then the card goes on cooldown and the turn ends.
+- **Statuses on a damaging card ride on its hits.** If a card has a damage effect on the chosen enemy, its status effects on that enemy are carried by every hit of the first such damage effect (step 7 of the hit order), so a deflected hit applies none (Dirty Trick into Warded: no Enfeebled). A card with no damage effect applies its statuses directly: chance and resistance apply, but nothing can deflect it, since it is not an attack. Effects on the user (heal, restore Shield, own statuses) always apply directly.
+- **Which enemies a riding status reaches:** a status effect on enemies rides on the hits of the card's first damage effect against each enemy it covers; an enemy that damage effect doesn't hit gets the status directly. A status on "the chosen enemy" only rides on hits against that enemy.
+- Statuses a card puts on its user are the user's own, so resistance doesn't apply (as for converts).
+- Heal and restore Shield scale only with the user's stats and statuses, never the target's.
+- Only player-side units use cards; an enemy acts through its moves. A card or move whose target has fallen during the card is skipped for that target.
+- **Passing** ends the turn with no action. A turn with no ready card can only pass.
+- **Strike once:** since every turn is one action, Strike can be used at most once per turn.
+
+### Enemy moves (decided 11 Oct 2026)
+- An enemy has a list of **moves** (data): each with a weight, a cooldown and the same effects as skills, plus a written intent line.
+- **One move per turn.** The enemy's next move is picked by weight among its ready moves, on the combat RNG, at the start of the fight and right after each of its turns (a lost turn counts: its cooldowns have ticked, so it picks again), so its intent always shows the move it will use. If its chosen move becomes unusable (restricted), it picks again among the allowed ready moves; with none, it passes.
+- Enemy moves target the player unless the move says otherwise.
+
 ### Sample skills
-| Skill | Source | Cost | Cooldown | Effect | Scales with |
-|---|---|---|---|---|---|
-| Strike | Notched Longsword (basic) | 0 | none | 4 damage | +2 per Might |
-| Strike | Twin Knives (basic) | 0 | none | 3 damage | +2 per Agility |
-| 火 Huo (Word) | Ember Charm (accessory) | 1 | 1 | 3 arcane damage, Burning 2 | +3 per Arcana |
-| Smoke Bomb | Mara (companion) | 1 | 3 | Warded 1 | Warded 2 at Cunning 4+ |
-| Last Rites | Brother Aldo (companion) | 2 | 3 | Heal 6, remove 1 status | +2 per Wisdom |
-| Cleave | Starting technique, scroll | 2 | 1 | 6 damage | +2 per Might, +1 per Agility |
-| Dirty Trick | Starting technique, scroll | 1 | 1 | 3 physical damage, Enfeebled 2 | +2 per Cunning, +1 per Agility |
-| Analyse | Starting technique, scroll | 1 | 2 | Reveal intent; next hit +10% | +10% per Intelligence |
-| Mend | Scroll, merchant | 1 | 2 | Heal 4 | +3 per Wisdom |
-| Shore Up | Scroll, armorer | 1 | 2 | Restore 5 Shield | +2 per Vitality |
-| Bloodletter | Scroll, boss reward | 2 | 2 | 4 physical damage, Piercing, Bleeding 3 | +2 per Cunning |
+| Skill | Source | Cooldown | Effect | Scales with |
+|---|---|---|---|---|
+| Strike | Notched Longsword (basic) | none | 4 damage | +2 per Might |
+| Strike | Twin Knives (basic) | none | 3 damage, 2 hits | +2 per Agility |
+| 火 Huo (Word) | Ember Charm (accessory) | 1 | 3 arcane damage, Burning 2 | +3 per Arcana |
+| Smoke Bomb | Mara (companion) | 3 | Warded 1 | Warded 2 at Cunning 4+ |
+| Last Rites | Brother Aldo (companion) | 3 | Heal 6, remove 1 status | +2 per Wisdom |
+| Cleave | Starting technique, scroll | 1 | 6 damage | +2 per Might, +1 per Agility |
+| Dirty Trick | Starting technique, scroll | 1 | 3 physical damage, Enfeebled 2 | +2 per Cunning, +1 per Agility |
+| Analyse | Starting technique, scroll | 2 | Reveal intent; next hit +10% | +10% per Intelligence |
+| Mend | Scroll, merchant | 2 | Heal 4 | +3 per Wisdom |
+| Shore Up | Scroll, armorer | 2 | Restore 5 Shield | +2 per Vitality |
+| Bloodletter | Scroll, boss reward | 2 | 4 physical damage, Piercing, Bleeding 3 | +2 per Cunning |
 
 Worked example, Sellsword in the mockups: base 2 everywhere, Might and Vitality 3. Longsword +1 Might; Brigandine +1 Vitality, +10 HP, −1 Agility; Sworn Road +1 Wisdom. Result: Might 4, Vitality 4, Agility 1, Arcana 2, Wisdom 3, 50 HP, 8 Shield. Strike 12, Cleave 15, Huo 9, Mend 13.
 
@@ -153,11 +170,11 @@ Example data:
 // content/skills/dirty_trick.json
 {
   "id": "skill.dirty_trick",
-  "cost": 1, "cooldown": 1,
+  "cooldown": 1,
   "effects": [
     { "type": "damage", "damageType": "physical", "amount": 3, "target": "enemy",
       "scaling": [ { "stat": "cunning", "per": 2 }, { "stat": "agility", "per": 1 } ] },
-    { "type": "status", "status": "enfeebled", "turns": 2, "target": "enemy" }
+    { "type": "status", "status": "enfeebled", "stacks": 2, "target": "enemy" }
   ],
   "upgrade": "skill.dirty_trick_plus"
 }
@@ -167,7 +184,7 @@ Example data:
 All magic follows the Tales of Words magic system: **a caster summons a word, and the word's power takes effect.** The mage opens a hand, shouts the word ("Huo!"), the written character for it (火, fire) appears in front of them, and the fire attack follows. The full system will be defined in the wiki; this section covers how the game represents it and should be updated as the wiki grows.
 
 ### Words in the game
-- **Every arcane skill is a Word.** A Word is a skill with extra data: the glyph, the spoken form, its meaning (translated), its element tags and its effects. It follows every skill rule: a card, max 5 cards, cooldowns, energy, its own scaling.
+- **Every arcane skill is a Word.** A Word is a skill with extra data: the glyph, the spoken form, its meaning (translated), its element tags and its effects. It follows every skill rule: a card, max 5 cards, cooldowns, one action per turn, its own scaling.
 - **Casting is one generic animation, the same for every Word:**
   1. The caster's shout floats up from their head ("Huo!").
   2. The glyph appears in front of the caster, large and glowing in the element's colour.
@@ -209,7 +226,7 @@ Statuses change whether a unit acts, how hard it hits, and what happens when it 
 ### Turn pipeline
 1. **Turn start:** statuses run start hooks (bleed and burn damage, regeneration).
 2. **Action gate:** each status returns allow, skip (with reason), restrict (a filter on usable cards) or redirect (a forced action, e.g. confusion picks a random card). Skip beats redirect, redirect beats restrict, restrict beats allow.
-3. **Action:** if not skipped, the player picks a card that passes the filter, or ends the turn. Enemies pick from their move list the same way.
+3. **Action:** if not skipped, the unit takes **one action**: the player uses one ready card that passes the filter (Strike, a skill or the companion's skill) on a chosen target, or passes. Enemies use one move (see "Enemy moves").
 4. **Resolve:** skill effects run; each hit follows the hit order below.
 5. **Turn end:** cooldowns tick down, **including on skipped turns**. Ticking statuses lose a stack; ones at 0 are removed (details below).
 
@@ -391,7 +408,7 @@ NodeRegistry.register(new MerchantNode())
 ```
 
 - **Events:** written in Ink (inkle), one file per event. Choices can check character triggers, companion triggers, any of the seven stats, character, path, items, companions or story flags. Locked options stay visible (greyed, with requirement).
-- **Combat:** turn-based. Actions are the free weapon Strike, the companion skill and your skills; each skill card shows its current value and scaling stats. Enemies are data files (stats, weighted moves, a written intent line per move). Intent is a text hint, not a number. Bosses can switch move sets at HP thresholds.
+- **Combat:** turn-based, one action per turn: the weapon Strike, the companion skill or one of your skills; each skill card shows its current value and scaling stats. Enemies are data files (stats, weighted moves, a written intent line per move). Intent is a text hint, not a number. Bosses can switch move sets at HP thresholds.
 - **Merchant:** stock rolled from the act's loot table, prices scaled by act, spends crowns (in-run currency). Merchants can be recurring characters.
 
 ### Combat screen (portrait)
@@ -399,11 +416,11 @@ Top to bottom:
 1. **Arena** (about the top 40%): character and companion on the left, enemy on the right (groups of up to three enemies stack on the right). Name and HP bar under each unit.
 2. **Floating text:** damage, heals and effects pop up from the head of the unit they hit, bounce slightly, rise and fade within about a second. Damage white on enemies and red on you, damage absorbed by Shield blue with ⛨, heals green, statuses blue (good) or orange (bad). Consecutive popups stagger so they don't overlap.
 3. **Enemy intent** under the arena: the written hint, plus a precise readout (type and rough damage) only with enough Intelligence.
-4. **Character panel:** Shield bar over HP bar, energy pips, then buff and debuff chips. Tapping a chip explains it. Every arena unit shows the same two bars under its feet.
-5. **Skill cards** along the bottom, in thumb reach. Each card: energy cost, name, current value from your stats, scaling stats, source. Strike always first with a gold edge; companion card has its own colour; cooldown cards dimmed with turns left. Never more than five cards, so the row always fits.
+4. **Character panel:** Shield bar over HP bar, then buff and debuff chips. Tapping a chip explains it. Every arena unit shows the same two bars under its feet.
+5. **Skill cards** along the bottom, in thumb reach. Each card: name, current value from your stats, scaling stats, source. Strike always first with a gold edge; companion card has its own colour; cooldown cards dimmed with turns left. Never more than five cards, so the row always fits.
 6. **End turn** button. Full combat log one tap away, not on screen.
 
-Tap a card to select, tap again (or tap the enemy) to use. Long press shows full card text. Floating text and screen shake can be reduced in settings.
+Tap a card to select, then tap an enemy to use it on (with one enemy, tap the card again). Using a card ends your turn. Long press shows full card text. Floating text and screen shake can be reduced in settings.
 
 
 Example event (`content/acts/act1/events/ferryman.ink`):
@@ -662,7 +679,7 @@ You shouldn't need a store release to see progress.
 | Milestone | Content | Done when |
 |---|---|---|
 | M0 Foundations | Monorepo, CI, preview links, lint boundaries, content schemas, empty core, simulator skeleton, first ADRs | A blank app is live on a preview link |
-| M1 Combat core | Shield/HP, hit pipeline, turn pipeline, all 14 statuses with stacking, cards and Strike, cooldowns, energy | All spec scenarios pass headless; benchmark baseline recorded |
+| M1 Combat core | Shield/HP, hit pipeline, turn pipeline, all 14 statuses with stacking, cards and Strike, cooldowns, enemy moves | All spec scenarios pass headless; benchmark baseline recorded |
 | M2 Run layer | Loadout, stats and level-ups, node registry, events via inkjs, merchant, rewards and rerolls, learning skills, companions, run limits | A full Act I run plays headless in the simulator |
 | M3 Game shell | Screens from the mockups, combat played from the event stream, art manifest and generic animations | Act I playable on the preview link, on a phone browser |
 | M4 Platform | Saves and cloud save, Ink unlocks, Premium and bundles via RevenueCat, AdMob rewarded and interstitial, consent, web mocks, localisation | Revive, reroll, end-of-run ad, purchase and restore all work on an internal-track device |

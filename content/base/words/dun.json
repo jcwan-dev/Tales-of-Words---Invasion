@@ -6,7 +6,6 @@
   "spoken": "Dun",
   "meaning": "word.dun.meaning",
   "placeholder": true,
-  "cost": 1,
   "cooldown": 2,
   "effects": [
     {

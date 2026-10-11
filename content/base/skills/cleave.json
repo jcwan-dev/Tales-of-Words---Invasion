@@ -2,7 +2,6 @@
   "kind": "skill",
   "id": "skill.cleave",
   "name": "skill.cleave.name",
-  "cost": 2,
   "cooldown": 1,
   "effects": [
     {

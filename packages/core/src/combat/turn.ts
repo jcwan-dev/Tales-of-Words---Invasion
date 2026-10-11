@@ -1,5 +1,6 @@
 import type { CombatContext } from "./context.ts";
 import { GATE, resetGate } from "./gate.ts";
+import { pickIntent } from "./moves.ts";
 import { DECAYING_POWERS } from "./powers.ts";
 import { checkFightEnd, CombatStateImpl, type CombatState } from "./state.ts";
 import { GATE_HOOKS, TURN_HOOKS, type HookEntry } from "./statuses/registry.ts";
@@ -37,6 +38,8 @@ export function beginCombat(ctx: CombatContext, units: readonly CombatUnit[]): C
   const state = new CombatStateImpl(ctx, order);
   ctx.fight = state;
   ctx.events.push({ type: "CombatStarted", order: ids });
+  // Every unit with moves shows its first intent (spec: Enemy moves).
+  for (const u of order) if (u.moves.length > 0 && !u.fallen) pickIntent(ctx, u, null);
   state.index = -1;
   advance(state);
   checkFightEnd(ctx);
@@ -69,6 +72,8 @@ export function startTurn(state: CombatState): boolean {
   const unit = s.active;
   const ctx = s.ctx;
   ctx.events.push({ type: "TurnStarted", unit: unit.id, round: s.round });
+  s.turnStarted = true;
+  s.canAct = false;
 
   // 1. Turn start: damage over time, in priority order; stops once the unit falls.
   const turn = s.turn;
@@ -93,11 +98,13 @@ export function startTurn(state: CombatState): boolean {
     const stacks = unit.statuses.stacksAt(entry.index);
     if (stacks > 0) entry.hook(unit, stacks, ctx, entry.id, gate);
   }
-  return gate.result !== GATE.skip;
+  s.canAct = gate.result !== GATE.skip;
+  return s.canAct;
 }
 
 /**
- * Turn end for `state.active` (cooldowns tick, ticking decay, decaying powers −1), then the next living
+ * Turn end for `state.active` (cooldowns tick, ticking decay, decaying powers −1), then, for a unit with
+ * moves, its next intent, then the next living
  * unit becomes active (the next round after the last one). A unit that fell during its own action
  * skips the turn-end effects; TurnEnded is still emitted.
  */
@@ -119,11 +126,16 @@ export function endTurn(state: CombatState): void {
     }
   }
   ctx.events.push({ type: "TurnEnded", unit: unit.id });
+  // Right after each of its turns (lost turns included, after the cooldown tick), a unit with moves
+  // picks its next move (spec: Enemy moves).
+  if (unit.moves.length > 0 && !unit.fallen) pickIntent(ctx, unit, null);
   advance(s);
 }
 
 /** Moves `active` to the next living unit in the turn order; wrapping past the end starts a new round. */
 function advance(s: CombatStateImpl): void {
+  s.turnStarted = false;
+  s.canAct = false;
   const units = s.units;
   const n = units.length;
   let index = s.index;

@@ -6,7 +6,6 @@
   "spoken": "Lei",
   "meaning": "word.lei.meaning",
   "placeholder": true,
-  "cost": 1,
   "cooldown": 2,
   "effects": [
     {

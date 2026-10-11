@@ -2,7 +2,6 @@
   "kind": "skill",
   "id": "skill.mend",
   "name": "skill.mend.name",
-  "cost": 1,
   "cooldown": 2,
   "effects": [
     {

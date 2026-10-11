@@ -20,7 +20,8 @@ export const STATUS_IDS = [
 export type StatusId = (typeof STATUS_IDS)[number];
 
 export type DamageType = "physical" | "arcane";
-export type Target = "self" | "enemy";
+/** Who an effect targets: the user, the chosen enemy, or every living enemy (spec: Skills). */
+export type Target = "self" | "enemy" | "allEnemies";
 
 /** Status tags: cross-status queries go through these, never through ids (spec: Combat core design). */
 export const STATUS_TAGS = ["dot"] as const;
@@ -39,7 +40,16 @@ export type Scaling =
   | { readonly stacksOfTag: StatusTag; readonly per: number };
 
 export type Effect =
-  | { readonly type: "damage"; readonly damageType: DamageType; readonly amount: number; readonly target: Target; readonly scaling?: readonly Scaling[]; readonly piercing?: boolean }
+  | {
+      readonly type: "damage";
+      readonly damageType: DamageType;
+      readonly amount: number;
+      readonly target: Target;
+      readonly scaling?: readonly Scaling[];
+      readonly piercing?: boolean;
+      /** Hits of this one attack (integer >= 1, default 1). */
+      readonly hits?: number;
+    }
   | { readonly type: "heal"; readonly amount: number; readonly target: Target; readonly scaling?: readonly Scaling[] }
   | { readonly type: "restoreShield"; readonly amount: number; readonly target: Target; readonly scaling?: readonly Scaling[] }
   | { readonly type: "status"; readonly status: StatusId; readonly stacks: number; readonly target: Target; readonly chance?: number }
@@ -76,7 +86,13 @@ interface ItemBase extends Base {
 export interface WeaponDef extends ItemBase {
   readonly kind: "weapon";
   /** Strike: the basic attack. Free, no cooldown (spec: Skills). */
-  readonly attack: { readonly damage: number; readonly damageType: DamageType; readonly scaling: readonly Scaling[] };
+  readonly attack: {
+    readonly damage: number;
+    readonly damageType: DamageType;
+    readonly scaling: readonly Scaling[];
+    /** Hits of the Strike (integer >= 1, default 1; Twin Knives: 2). */
+    readonly hits?: number;
+  };
 }
 
 export interface ArmorDef extends ItemBase {
@@ -98,7 +114,6 @@ export interface PathDef extends Base {
 
 export interface SkillDef extends Base {
   readonly kind: "skill";
-  readonly cost: number;
   /** Every skill except Strike has a cooldown of at least 1 (spec: Skills). */
   readonly cooldown: number;
   readonly effects: readonly Effect[];

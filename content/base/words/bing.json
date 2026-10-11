@@ -6,7 +6,6 @@
   "spoken": "Bing",
   "meaning": "word.bing.meaning",
   "placeholder": true,
-  "cost": 1,
   "cooldown": 1,
   "effects": [
     {

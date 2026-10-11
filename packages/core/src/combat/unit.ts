@@ -1,5 +1,6 @@
 import type { StatusId } from "../content/types.ts";
 import { BASE_STAT, STAT_IDS, type StatBlock, type StatId } from "../model/stats.ts";
+import { compileCard, type CardPlan, type CardSpec, type EnemyMove } from "./cards.ts";
 import { CardCooldowns, type Cooldowns } from "./cooldowns.ts";
 import { POWER_IDS, type PowerId } from "./power-ids.ts";
 import { DenseStatusSet, type StatusSet } from "./status-set.ts";
@@ -29,7 +30,14 @@ export interface UnitInit {
   burnPower?: number;
   poisonPower?: number;
   traits?: UnitTraits;
+  /** The unit's cards (skills). A player-side unit holds at most 5 (spec: Skills). */
+  cards?: readonly CardSpec[];
+  /** Enemy moves (spec: Enemy moves): each weight must be > 0. */
+  moves?: readonly EnemyMove[];
 }
+
+/** A player holds at most this many cards (spec: Skills). */
+export const MAX_PLAYER_CARDS = 5;
 
 /** A unit in combat. Stats are fixed for the fight; HP, Shield, statuses and decaying powers change. */
 export interface CombatUnit {
@@ -61,6 +69,16 @@ export interface CombatUnit {
   readonly poisonPower: number;
   readonly traits: UnitTraits;
   readonly cooldowns: Cooldowns;
+  /** The unit's cards, in order. */
+  readonly cards: readonly CardSpec[];
+  /** Compiled cards, parallel to `cards` (rules internals). */
+  readonly cardPlans: readonly CardPlan[];
+  /** The unit's moves (enemies), in order. */
+  readonly moves: readonly EnemyMove[];
+  /** Compiled move cards, parallel to `moves` (rules internals). */
+  readonly movePlans: readonly CardPlan[];
+  /** The id of the move the unit will use next (its intent); null without moves or with none ready. */
+  intent: string | null;
 }
 
 const NO_TRAITS: UnitTraits = Object.freeze({});
@@ -78,6 +96,11 @@ class Unit implements CombatUnit {
   readonly powers: Record<PowerId, number>;
   readonly fullPowers: Readonly<Record<PowerId, number>>;
   readonly traits: UnitTraits;
+  readonly cards: readonly CardSpec[];
+  readonly cardPlans: readonly CardPlan[];
+  readonly moves: readonly EnemyMove[];
+  readonly movePlans: readonly CardPlan[];
+  intent: string | null = null;
 
   constructor(
     id: string,
@@ -89,6 +112,8 @@ class Unit implements CombatUnit {
     shield: number,
     powers: Readonly<Record<PowerId, number>>,
     traits: UnitTraits,
+    cards: readonly CardSpec[],
+    moves: readonly EnemyMove[],
   ) {
     this.id = id;
     this.side = side;
@@ -100,6 +125,10 @@ class Unit implements CombatUnit {
     this.fullPowers = Object.freeze({ ...powers });
     this.powers = { ...powers };
     this.traits = traits;
+    this.cards = cards;
+    this.cardPlans = cards.map(compileCard);
+    this.moves = moves;
+    this.movePlans = moves.map((m) => compileCard(m.card));
   }
 
   get fallen(): boolean {
@@ -144,7 +173,16 @@ export function createUnit(init: UnitInit): CombatUnit {
   const powers = {} as Record<PowerId, number>;
   for (const p of POWER_IDS) powers[p] = nonNegativeInt(init[p] ?? 0, p);
 
-  const unit = new Unit(init.id, init.side, Object.freeze(stats), maxHp, hp, maxShield, shield, powers, init.traits ?? NO_TRAITS);
+  const cards = init.cards ?? [];
+  if (init.side === "player" && cards.length > MAX_PLAYER_CARDS) {
+    throw new RangeError(`createUnit: a player holds at most ${MAX_PLAYER_CARDS} cards, got ${cards.length}`);
+  }
+  const moves = init.moves ?? [];
+  for (const m of moves) {
+    if (!(Number.isFinite(m.weight) && m.weight > 0)) throw new RangeError(`createUnit: move ${m.card.id} needs a weight > 0, got ${m.weight}`);
+  }
+
+  const unit = new Unit(init.id, init.side, Object.freeze(stats), maxHp, hp, maxShield, shield, powers, init.traits ?? NO_TRAITS, Object.freeze([...cards]), Object.freeze([...moves]));
   if (init.statuses) {
     for (const [id, n] of Object.entries(init.statuses) as [StatusId, number | undefined][]) {
       if (n !== undefined) unit.statuses.add(id, n);
