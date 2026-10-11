@@ -1,6 +1,7 @@
 import type { StatusId } from "../content/types.ts";
 import { addStacks } from "./actions.ts";
 import type { CombatContext } from "./context.ts";
+import type { SlowDecay } from "./decay-rules.ts";
 import type { CombatUnit } from "./unit.ts";
 
 /** What can set off a convert trigger (spec: Synergy effects). */
@@ -15,8 +16,14 @@ export interface ConvertTrigger {
 
 /** Unit traits from items, paths and companions (loaded by the run layer, M2). */
 export interface UnitTraits {
-  /** Slow decay: while this unit lives, DoTs on the other side lose their stack only on even rounds. */
-  slowEnemyDotDecay?: boolean;
+  /** Slow decay: while this unit lives, the covered statuses lose stacks only on even rounds. Plague Censer: `{ statuses: { tag: "dot" }, whose: "enemies" }`. */
+  slowDecay?: readonly SlowDecay[];
+  /**
+   * Decay floors: on this unit, a status never decays below its minimum (turn-end ticking and the DoT −1 only).
+   * A unit holds one number per status: several floors on the same status are merged by max when the traits
+   * are assembled (the run layer, M2).
+   */
+  decayFloors?: Partial<Record<StatusId, number>>;
   converts?: readonly ConvertTrigger[];
 }
 

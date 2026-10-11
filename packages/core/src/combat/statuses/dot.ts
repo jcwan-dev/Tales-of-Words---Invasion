@@ -10,12 +10,12 @@ const scratch: DamageResult = { shield: 0, hp: 0, shieldBroken: false, fell: fal
 
 /**
  * One damage-over-time tick (spec: Turn details): damage equal to the stacks, then −1 stack, unless
- * the turn holds DoT decay (slow decay, spec: Synergy effects). Not an attack, so it runs no hit
+ * slow decay holds it this round or the stacks are at the owner's floor (spec: Synergy effects). Not an attack, so it runs no hit
  * hooks and no triggers: no Thorns, Warded, Leeching, powers or converts.
  */
 export function dotTick(owner: CombatUnit, stacks: number, ctx: CombatContext, status: StatusId, skipShield: boolean, turn: TurnInfo): void {
   applyDamage(owner, stacks, skipShield, scratch);
   ctx.events.push({ type: "DotDamage", unit: owner.id, status, shieldDamage: scratch.shield, hpDamage: scratch.hp });
   reportDamage(ctx, owner, scratch);
-  if (!turn.holdDotDecay) removeStacks(ctx, owner, status, 1);
+  if (turn.decay.allows(owner, status)) removeStacks(ctx, owner, status, 1);
 }

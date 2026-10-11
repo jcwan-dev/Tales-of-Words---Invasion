@@ -15,6 +15,7 @@ import {
   type ConvertTrigger,
   type HitSpec,
   type Rng,
+  type SlowDecay,
   type StatId,
   type StatusApplication,
   type StatusId,
@@ -32,6 +33,8 @@ const FIGHTS = 200;
 const MAX_ROUNDS = 30;
 const TRIGGERS: readonly TriggerEvent[] = ["deflect", "attacked", "dealtDamage", "tookDamage"];
 const DOTS: readonly StatusId[] = ["burning", "bleeding", "poisoned"];
+// Spec 1.6: Plague Censer, the only slow decay these fights generate.
+const CENSER: SlowDecay = { statuses: { tag: "dot" }, whose: "enemies" };
 
 function planUnit(rng: Rng, id: string, side: "player" | "enemy"): UnitInit {
   const stats: Partial<Record<StatId, number>> = {};
@@ -60,7 +63,7 @@ function planUnit(rng: Rng, id: string, side: "player" | "enemy"): UnitInit {
     bleedPower: rng.chance(0.4) ? rng.int(1, 4) : 0,
     burnPower: rng.chance(0.4) ? rng.int(1, 4) : 0,
     poisonPower: rng.chance(0.4) ? rng.int(1, 4) : 0,
-    traits: { slowEnemyDotDecay: rng.chance(0.3), converts },
+    traits: { slowDecay: rng.chance(0.3) ? [CENSER] : [], converts },
   };
 }
 
@@ -157,7 +160,7 @@ function playFight(i: number, check: boolean, counts: Counts): CombatEvent[] {
 
     // Slow decay: a DoT keeps its stack on odd rounds while a living unit of the other side has the trait.
     const round = state.round;
-    const slowed = state.units.some((u) => u.side !== unit.side && !u.fallen && u.traits.slowEnemyDotDecay === true);
+    const slowed = state.units.some((u) => u.side !== unit.side && !u.fallen && (u.traits.slowDecay ?? []).length > 0);
     const dotBefore = DOTS.map((s) => unit.statuses.stacks(s));
 
     const startAt = ctx.events.length;

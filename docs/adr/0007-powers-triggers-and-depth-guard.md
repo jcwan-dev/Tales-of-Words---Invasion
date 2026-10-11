@@ -23,7 +23,12 @@ Spec 1.5 adds Bleed, Burn and Poison power next to Stun and Paralysis power, rem
 
   A fallen unit doesn't trigger. Gains are the owner's own statuses: added unresisted (TriggerFired, then StatusApplied). Thorns and damage over time call no triggers.
 - **Depth guard:** `CombatContext.triggerDepth`, raised around each trigger by `fireTriggers` and restored afterwards (0 outside triggers, so a trigger set off by a hit is depth 1). A trigger that would run deeper than `TRIGGER_DEPTH_CAP` (4) is skipped with `TriggerCapped`. No chain is possible with today's four trigger events, so the guard is unit-tested by presetting the depth.
-- **Slow decay:** the turn controller computes `holdDotDecay` once per turn start (odd round and a living unit on the other side has `slowEnemyDotDecay`) and passes it to turn hooks in the pooled `TurnInfo`; the shared DoT tick deals damage and skips the −1 when it is set.
+- **Slow decay:** ~~a per-turn `holdDotDecay` flag from `slowEnemyDotDecay`~~, superseded by the amendment below (spec 1.6).
+
+## Amendment (spec 1.6, M1.3b): consume cap, general slow decay, decay floors
+- **Consume cap:** `ConsumeSpec.max` (positive integer, else RangeError). The runner counts `n = min(stacks, max)` when the hit starts (step-1 value `n × multiplier`) and, if the hit lands, removes exactly `n` at the end of the hit; without a cap it still removes every stack then. Content: a `consume` effect `{ type, status, multiplier, damageType, target, max? }`, validated (`max` a positive integer).
+- **Decay rules** (`combat/decay-rules.ts`): `UnitTraits.slowDecay` (a list of `{ statuses: ids | { tag }, whose: "own" | "enemies" }`) replaces `slowEnemyDotDecay`, and `UnitTraits.decayFloors` is new: one number per status on a unit; several floors on the same status are merged by max when the traits are assembled (the run layer, M2). `beginCombat` resolves them once into dense per-unit tables (slowed-own mask, slowed-enemies mask, floors), so the turn path compares no ids and allocates nothing (a status id maps to its dense index by a plain property read).
+- **One question for every turn-time decay:** `TurnInfo.decay.allows(owner, status)`, asked by the shared DoT tick (turn start) and the shared ticking decay (turn end). It says no when the stacks are at or below the owner's floor, or on an odd round while a living holder slows that status on that unit. "Alive" is read at each call, so a holder that falls mid-turn stops slowing at once; several holders or entries don't stack (any one is enough). Charges, consumes and meter resets don't ask, so neither rule touches them.
 
 ## Consequences
 - A new power is a table row and a unit field; no pipeline change.

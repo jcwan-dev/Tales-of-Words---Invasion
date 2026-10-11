@@ -18,6 +18,7 @@ export * from "./combat/power-ids.ts";
 export * from "./combat/powers.ts";
 export * from "./combat/triggers.ts";
 export * from "./combat/turn-info.ts";
+export * from "./combat/decay-rules.ts";
 export * from "./combat/cooldowns.ts";
 export * from "./combat/gate.ts";
 export type { CombatState } from "./combat/state.ts";

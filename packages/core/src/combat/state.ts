@@ -1,5 +1,6 @@
 import type { CombatContext } from "./context.ts";
 import { createGateState, type GateState } from "./gate.ts";
+import { DecayRules } from "./decay-rules.ts";
 import { createTurnInfo, type TurnInfo } from "./turn-info.ts";
 import type { CombatUnit, Side } from "./unit.ts";
 
@@ -28,12 +29,16 @@ export class CombatStateImpl implements CombatState {
   index = 0;
   /** Pooled action-gate result, reset at every gate. */
   readonly gate: GateState = createGateState();
+  /** Slow decay and decay floors for this fight, resolved once from the units' traits. */
+  readonly decay: DecayRules;
   /** Pooled turn info for turn hooks, refilled at every turn start and end. */
-  readonly turn: TurnInfo = createTurnInfo();
+  readonly turn: TurnInfo;
 
   constructor(ctx: CombatContext, units: readonly CombatUnit[]) {
     this.ctx = ctx;
     this.units = units;
+    this.decay = new DecayRules(units);
+    this.turn = createTurnInfo(this.decay);
   }
 }
 

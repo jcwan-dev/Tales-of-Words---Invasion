@@ -42,7 +42,16 @@ export type Effect =
   | { readonly type: "damage"; readonly damageType: DamageType; readonly amount: number; readonly target: Target; readonly scaling?: readonly Scaling[]; readonly piercing?: boolean }
   | { readonly type: "heal"; readonly amount: number; readonly target: Target; readonly scaling?: readonly Scaling[] }
   | { readonly type: "restoreShield"; readonly amount: number; readonly target: Target; readonly scaling?: readonly Scaling[] }
-  | { readonly type: "status"; readonly status: StatusId; readonly stacks: number; readonly target: Target; readonly chance?: number };
+  | { readonly type: "status"; readonly status: StatusId; readonly stacks: number; readonly target: Target; readonly chance?: number }
+  /** A consume (spec: Synergy effects): one typed hit for stacks × multiplier; `max` caps the stacks taken. */
+  | {
+      readonly type: "consume";
+      readonly status: StatusId;
+      readonly multiplier: number;
+      readonly damageType: DamageType;
+      readonly target: Target;
+      readonly max?: number;
+    };
 
 export type StatBonus = Readonly<Partial<Record<StatId, number>>>;
 

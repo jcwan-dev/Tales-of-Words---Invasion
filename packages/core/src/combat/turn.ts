@@ -73,7 +73,7 @@ export function startTurn(state: CombatState): boolean {
   // 1. Turn start: damage over time, in priority order; stops once the unit falls.
   const turn = s.turn;
   turn.round = s.round;
-  turn.holdDotDecay = s.round % 2 === 1 && enemySlowsDecay(s, unit);
+  s.decay.round = s.round;
   dispatchTurn(TURN_HOOKS.onTurnStart, unit, ctx, turn, true);
   if (unit.fallen) {
     checkFightEnd(ctx);
@@ -96,16 +96,6 @@ export function startTurn(state: CombatState): boolean {
   return gate.result !== GATE.skip;
 }
 
-/** Slow decay: is a living unit on the other side of `unit` holding `slowEnemyDotDecay`? (Several don't stack.) */
-function enemySlowsDecay(s: CombatStateImpl, unit: CombatUnit): boolean {
-  const units = s.units;
-  for (let i = 0; i < units.length; i++) {
-    const u = units[i];
-    if (u !== undefined && u.side !== unit.side && !u.fallen && u.traits.slowEnemyDotDecay === true) return true;
-  }
-  return false;
-}
-
 /**
  * Turn end for `state.active` (cooldowns tick, ticking decay, decaying powers −1), then the next living
  * unit becomes active (the next round after the last one). A unit that fell during its own action
@@ -120,7 +110,7 @@ export function endTurn(state: CombatState): void {
     unit.cooldowns.tick();
     const turn = s.turn;
     turn.round = s.round;
-    turn.holdDotDecay = false;
+    s.decay.round = s.round;
     dispatchTurn(TURN_HOOKS.onTurnEnd, unit, ctx, turn, false);
     const powers = unit.powers;
     for (let i = 0; i < DECAYING_POWERS.length; i++) {
