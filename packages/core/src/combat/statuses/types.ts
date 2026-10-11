@@ -1,8 +1,9 @@
-import type { StatusId } from "../../content/types.ts";
+import type { StatusId, StatusTag } from "../../content/types.ts";
 import type { StatId } from "../../model/stats.ts";
 import type { CombatContext } from "../context.ts";
 import type { GateState } from "../gate.ts";
 import type { HitState } from "../hit-state.ts";
+import type { TurnInfo } from "../turn-info.ts";
 import type { CombatUnit } from "../unit.ts";
 
 /** How stacks run out (spec: Stacking). */
@@ -21,6 +22,8 @@ export interface StatusDef {
    * Bleeding, Poisoned; action gate: Ambushed, Stunned, Paralysed).
    */
   readonly priority: number;
+  /** Tags for cross-status queries (Afflictions, stack scaling). Burning, Bleeding, Poisoned: "dot". */
+  readonly tags: readonly StatusTag[];
 }
 
 /**
@@ -30,7 +33,7 @@ export interface StatusDef {
 export type HitHook = (hit: HitState, owner: CombatUnit, stacks: number, ctx: CombatContext) => void;
 
 /** A turn hook (turn start, turn end). `status` is the id of the status the hook belongs to. */
-export type TurnHook = (owner: CombatUnit, stacks: number, ctx: CombatContext, status: StatusId) => void;
+export type TurnHook = (owner: CombatUnit, stacks: number, ctx: CombatContext, status: StatusId, turn: TurnInfo) => void;
 
 /** An action-gate hook: reads its stacks and narrows `gate` (see ../gate.ts). */
 export type GateHook = (owner: CombatUnit, stacks: number, ctx: CombatContext, status: StatusId, gate: GateState) => void;
@@ -41,7 +44,7 @@ export type GateHook = (owner: CombatUnit, stacks: number, ctx: CombatContext, s
  * - `onAttacked` (hit step 3, target): fires whether or not the hit lands (Thorns).
  * - `modifyIncoming` (hit step 4, target): may deflect the hit (Warded).
  * - `onDealtDamage` (hit step 6, attacker): only when damage > 0 was dealt (Leeching).
- * - `onTookDamage` (hit step 6, target): only when damage > 0 was taken (Bleeding).
+ * - `onTookDamage` (hit step 6, target): only when damage > 0 was taken (no status uses it since spec 1.5).
  * - `onTurnStart` (turn start, active unit): damage over time. Stops once the unit falls.
  * - `gateAction` (action gate, active unit): Ambushed, Stunned, Paralysed. Stops once the turn is lost.
  * - `onTurnEnd` (turn end, active unit): ticking decay.

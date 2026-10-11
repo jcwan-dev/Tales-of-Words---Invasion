@@ -10,6 +10,6 @@ function modifyOutgoing(hit: HitState, _owner: CombatUnit, stacks: number): void
 }
 
 export const kindled: StatusModule = {
-  def: { id: "kindled", kind: "buff", decay: "ticking", resistedBy: [], priority: 0 },
+  def: { id: "kindled", kind: "buff", decay: "ticking", resistedBy: [], priority: 0, tags: [] },
   hooks: { modifyOutgoing, onTurnEnd: loseOneStack },
 };

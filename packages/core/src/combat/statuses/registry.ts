@@ -1,4 +1,4 @@
-import { STATUS_IDS, type StatusId } from "../../content/types.ts";
+import { STATUS_IDS, STATUS_TAGS, type StatusId, type StatusTag } from "../../content/types.ts";
 import { statusIndex } from "../status-set.ts";
 import { ambushed } from "./ambushed.ts";
 import { bleeding } from "./bleeding.ts";
@@ -49,9 +49,13 @@ export const statusModule = (id: StatusId): StatusModule => MODULES[id];
 /** Status metadata from the spec's status list. */
 export const statusDef = (id: StatusId): StatusDef => MODULES[id].def;
 
-/** The statuses that the unit attributes Stun power and Paralysis power fill (spec: Stun and paralysis). */
-export const STUN_POWER_STATUS: StatusId = stunned.def.id;
-export const PARALYSIS_POWER_STATUS: StatusId = paralysed.def.id;
+/** Dense indices of the statuses carrying each tag, built once at load (for Afflictions and stack scaling). */
+export const TAGGED: Readonly<Record<StatusTag, readonly number[]>> = (() => {
+  const lists = {} as Record<StatusTag, number[]>;
+  for (const tag of STATUS_TAGS) lists[tag] = [];
+  for (const id of STATUS_IDS) for (const tag of MODULES[id].def.tags) lists[tag].push(statusIndex(id));
+  return lists;
+})();
 
 /** One hook registration: the hook, and the dense index and id of the status that owns it. */
 export interface HookEntry<H> {

@@ -1,30 +1,42 @@
-import type { Scaling } from "../content/types.ts";
+import type { DamageType, Scaling, StatusId } from "../content/types.ts";
 import type { StatBlock } from "../model/stats.ts";
 import { applyDamage, reportDamage } from "./actions.ts";
 import { applyStatus } from "./apply-status.ts";
 import type { CombatContext } from "./context.ts";
 import type { CombatEvent } from "./events.ts";
-import type { HitSpec, HitState } from "./hit-state.ts";
+import type { HitSpec, HitState, StatusApplication } from "./hit-state.ts";
+import { PER_HIT_POWERS } from "./powers.ts";
+import { afflictions, stacksWithTag } from "./queries.ts";
 import { checkFightEnd } from "./state.ts";
-import { HIT_HOOKS, STUN_POWER_STATUS, type HookEntry } from "./statuses/registry.ts";
+import { HIT_HOOKS, type HookEntry } from "./statuses/registry.ts";
 import type { HitHook } from "./statuses/types.ts";
+import { fireTriggers } from "./triggers.ts";
 import type { CombatUnit } from "./unit.ts";
 
-// The hit pipeline (spec: Hit order, ADR 0005). A fixed list of seven steps; statuses take part
-// only through the hook points in ./statuses/types.ts, and nothing here names a status.
+// The hit pipeline (spec: Hit order, ADR 0005, ADR 0007). A fixed list of seven steps; statuses take
+// part only through the hook points in ./statuses/types.ts, powers through the table in ./powers.ts,
+// converts through ./triggers.ts. Nothing here names a status.
 // Performance rule: no allocations, spreads or closures here except the events pushed.
 
 /** Each damage-modifier step is 25%, i.e. 1/4 of the base value. */
 const MODIFIER_STEPS_PER_WHOLE = 4;
 
-/** Step 1: base value = amount + Σ per × the attacker's stat. */
-export function baseValue(amount: number, scaling: readonly Scaling[] | undefined, stats: StatBlock): number {
+/**
+ * Step 1: base value = amount + Σ scaling terms. Stat terms read the attacker's `stats`; Afflictions
+ * and tag terms read `target` (required for them; a RangeError otherwise).
+ */
+export function baseValue(amount: number, scaling: readonly Scaling[] | undefined, stats: StatBlock, target?: CombatUnit): number {
   let value = amount;
-  if (scaling !== undefined) {
-    for (let i = 0; i < scaling.length; i++) {
-      const s = scaling[i];
-      if (s !== undefined) value += s.per * stats[s.stat];
+  if (scaling === undefined) return value;
+  for (let i = 0; i < scaling.length; i++) {
+    const s = scaling[i];
+    if (s === undefined) continue;
+    if ("stat" in s) {
+      value += s.per * stats[s.stat];
+      continue;
     }
+    if (target === undefined) throw new RangeError("baseValue: target scaling needs the target");
+    value += s.per * ("afflictions" in s ? afflictions(target) : stacksWithTag(target, s.stacksOfTag));
   }
   return value;
 }
@@ -39,13 +51,13 @@ const applyModifier = (base: number, steps: number): number => {
 const pool: HitState[] = [];
 let depth = 0;
 
-function acquire(attacker: CombatUnit, target: CombatUnit, hit: HitSpec): HitState {
+function acquire(attacker: CombatUnit, target: CombatUnit, damageType: DamageType, piercing: boolean): HitState {
   let h = pool[depth];
   if (h === undefined) {
     h = {
       attacker,
       target,
-      damageType: hit.damageType,
+      damageType,
       base: 0,
       modifierSteps: 0,
       value: 0,
@@ -59,11 +71,11 @@ function acquire(attacker: CombatUnit, target: CombatUnit, hit: HitSpec): HitSta
   }
   h.attacker = attacker;
   h.target = target;
-  h.damageType = hit.damageType;
+  h.damageType = damageType;
   h.base = 0;
   h.modifierSteps = 0;
   h.value = 0;
-  h.piercing = hit.piercing === true;
+  h.piercing = piercing;
   h.deflected = false;
   h.shieldDamage = 0;
   h.hpDamage = 0;
@@ -81,31 +93,45 @@ function dispatch(list: readonly HookEntry<HitHook>[], h: HitState, owner: Comba
 }
 
 /**
- * Step 7: the hit's statuses, then the attacker's Stun power (spec: Stun and paralysis), each an
+ * Step 7: the hit's statuses, then the attacker's per-hit powers (Bleed, then Stun), each an
  * application with its own chance roll and resistance.
  */
-function applyStatuses(ctx: CombatContext, h: HitState, hit: HitSpec): void {
+function applyStatuses(ctx: CombatContext, h: HitState, apps: readonly StatusApplication[] | undefined): void {
   const target = h.target;
-  const apps = hit.statuses;
   if (apps !== undefined) {
     for (let i = 0; i < apps.length; i++) {
       const app = apps[i];
       if (app !== undefined) applyStatus(ctx, target, app.status, app.stacks, app.chance ?? 1);
     }
   }
-  const stunPower = h.attacker.stunPower;
-  if (stunPower > 0) applyStatus(ctx, target, STUN_POWER_STATUS, stunPower, 1);
+  const powers = h.attacker.powers;
+  for (let i = 0; i < PER_HIT_POWERS.length; i++) {
+    const p = PER_HIT_POWERS[i];
+    if (p === undefined) continue;
+    const amount = powers[p.power];
+    if (amount > 0) applyStatus(ctx, target, p.status, amount, 1);
+  }
 }
 
 /**
- * Resolves one hit from `attacker` on `target` through the seven steps of the hit order,
- * appending events to `ctx.events`. A hit by or against a fallen unit does nothing. If the hit
- * fells a unit and the context belongs to a fight, the fight-end check runs after step 7.
- * Returns true if the hit landed (it was resolved and not deflected).
+ * The shared hit runner behind `resolveHit` and `resolveConsume`. With `consumeStatus` set, the base
+ * value is the target's stacks of it × `consumeMultiplier` (counted when the hit starts), and if the hit
+ * lands all its stacks are removed at the end of the hit. Returns true if the hit landed.
  */
-export function resolveHit(ctx: CombatContext, attacker: CombatUnit, target: CombatUnit, hit: HitSpec): boolean {
+function runHit(
+  ctx: CombatContext,
+  attacker: CombatUnit,
+  target: CombatUnit,
+  damageType: DamageType,
+  amount: number,
+  scaling: readonly Scaling[] | undefined,
+  piercing: boolean,
+  apps: readonly StatusApplication[] | undefined,
+  consumeStatus: StatusId | null,
+  consumeMultiplier: number,
+): boolean {
   if (attacker.fallen || target.fallen) return false;
-  const h = acquire(attacker, target, hit);
+  const h = acquire(attacker, target, damageType, piercing);
   depth++;
   try {
     // HitStarted opens the hit; its value is filled in once step 2 is done, so that charges used
@@ -114,26 +140,37 @@ export function resolveHit(ctx: CombatContext, attacker: CombatUnit, target: Com
       type: "HitStarted",
       attacker: attacker.id,
       target: target.id,
-      damageType: hit.damageType,
+      damageType,
       value: 0,
     };
     ctx.events.push(started);
 
-    // 1. Base value.
-    h.base = baseValue(hit.amount, hit.scaling, attacker.stats);
+    // 1. Base value (target terms read the target now, before anything this hit adds).
+    h.base = consumeStatus !== null ? target.statuses.stacks(consumeStatus) * consumeMultiplier : baseValue(amount, scaling, attacker.stats, target);
     // 2. Attacker modifiers (damage modifiers, Piercing charge).
     dispatch(HIT_HOOKS.modifyOutgoing, h, attacker, ctx);
     h.value = applyModifier(h.base > 0 ? h.base : 0, h.modifierSteps);
     started.value = h.value;
     // 3. Attacked triggers (Thorns), whether or not the hit lands.
     dispatch(HIT_HOOKS.onAttacked, h, target, ctx);
-    // 4. Warded check.
+    // 4. Warded check; a deflect trigger fires right after the deflect.
     dispatch(HIT_HOOKS.modifyIncoming, h, target, ctx);
     if (h.deflected) {
       ctx.events.push({ type: "HitDeflected", attacker: attacker.id, target: target.id });
+      fireTriggers(ctx, target, "deflect");
     } else {
-      resolveLandedHit(ctx, h, hit);
+      resolveLandedHit(ctx, h, apps);
+      // End of a landed consume: every stack of the status goes, including any this hit added.
+      if (consumeStatus !== null) {
+        const n = target.statuses.stacks(consumeStatus);
+        if (n > 0) {
+          target.statuses.remove(consumeStatus, n);
+          ctx.events.push({ type: "Consumed", unit: target.id, status: consumeStatus, stacks: n });
+        }
+      }
     }
+    // End of the hit: being-attacked triggers, so they never change this hit.
+    fireTriggers(ctx, target, "attacked");
     // Only Thorns (step 3) or the hit itself (step 5) can fell a unit here.
     if (attacker.fallen || target.fallen) checkFightEnd(ctx);
     return !h.deflected;
@@ -143,7 +180,7 @@ export function resolveHit(ctx: CombatContext, attacker: CombatUnit, target: Com
 }
 
 /** Steps 5-7 of a hit that was not deflected. */
-function resolveLandedHit(ctx: CombatContext, h: HitState, hit: HitSpec): void {
+function resolveLandedHit(ctx: CombatContext, h: HitState, apps: readonly StatusApplication[] | undefined): void {
   const attacker = h.attacker;
   const target = h.target;
   // 5. Shield, then HP (Piercing skips Shield).
@@ -155,17 +192,49 @@ function resolveLandedHit(ctx: CombatContext, h: HitState, hit: HitSpec): void {
     type: "DamageDealt",
     attacker: attacker.id,
     target: target.id,
-    damageType: hit.damageType,
+    damageType: h.damageType,
     shieldDamage: out.shield,
     hpDamage: out.hp,
     piercing: h.piercing,
   });
   reportDamage(ctx, target, out);
-  // 6. Damage triggers, only when damage was dealt: attacker first (Leeching), then target (Bleeding).
+  // 6. Damage triggers, only when damage was dealt: Leeching (attacker statuses), then the
+  //    attacker's dealtDamage converts, then the target's tookDamage converts.
   if (h.shieldDamage + h.hpDamage > 0) {
     dispatch(HIT_HOOKS.onDealtDamage, h, attacker, ctx);
     dispatch(HIT_HOOKS.onTookDamage, h, target, ctx);
+    fireTriggers(ctx, attacker, "dealtDamage");
+    fireTriggers(ctx, target, "tookDamage");
   }
-  // 7. Statuses carried by the hit, then Stun power.
-  applyStatuses(ctx, h, hit);
+  // 7. Statuses carried by the hit, then per-hit powers.
+  applyStatuses(ctx, h, apps);
+}
+
+/**
+ * Resolves one hit from `attacker` on `target` through the seven steps of the hit order,
+ * appending events to `ctx.events`. A hit by or against a fallen unit does nothing. If the hit
+ * fells a unit and the context belongs to a fight, the fight-end check runs at the end of the hit.
+ * Returns true if the hit landed (it was resolved and not deflected).
+ */
+export function resolveHit(ctx: CombatContext, attacker: CombatUnit, target: CombatUnit, hit: HitSpec): boolean {
+  return runHit(ctx, attacker, target, hit.damageType, hit.amount, hit.scaling, hit.piercing === true, hit.statuses, null, 0);
+}
+
+/** A consume effect (spec: Synergy effects): one typed hit for the target's stacks of `status` × `multiplier`. */
+export interface ConsumeSpec {
+  status: StatusId;
+  multiplier: number;
+  damageType: DamageType;
+  piercing?: boolean;
+}
+
+/**
+ * One hit whose amount is the target's stacks of `status` (counted when the hit starts) × multiplier.
+ * It goes through the whole hit order (modifiers, Thorns, Warded, Shield, per-hit powers, triggers).
+ * If it isn't deflected, all stacks of `status` are removed at the end of the hit, including any the
+ * hit added (Consumed, unless 0 were removed). It is not an attack: no per-attack powers.
+ * Returns whether it landed.
+ */
+export function resolveConsume(ctx: CombatContext, attacker: CombatUnit, target: CombatUnit, spec: ConsumeSpec): boolean {
+  return runHit(ctx, attacker, target, spec.damageType, 0, undefined, spec.piercing === true, undefined, spec.status, spec.multiplier);
 }

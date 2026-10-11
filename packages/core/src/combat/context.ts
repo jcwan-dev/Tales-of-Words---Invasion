@@ -11,9 +11,14 @@ export interface CombatContext {
    * it, so a hit resolved on its own (`resolveHit`) can end the fight.
    */
   fight: CombatState | null;
+  /**
+   * How deep the trigger currently resolving is (0 = none). Raised and restored around each convert
+   * trigger by `fireTriggers`; capped at `TRIGGER_DEPTH_CAP` per hit.
+   */
+  triggerDepth: number;
 }
 
 /** A fresh context whose RNG is the run's "combat" stream for this seed. */
 export function createCombatContext(seed: string): CombatContext {
-  return { rng: new RngStreams(seed).stream("combat"), events: [], fight: null };
+  return { rng: new RngStreams(seed).stream("combat"), events: [], fight: null, triggerDepth: 0 };
 }

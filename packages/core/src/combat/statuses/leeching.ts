@@ -15,6 +15,6 @@ function onDealtDamage(hit: HitState, owner: CombatUnit, stacks: number, ctx: Co
 }
 
 export const leeching: StatusModule = {
-  def: { id: "leeching", kind: "buff", decay: "ticking", resistedBy: [], priority: 0 },
+  def: { id: "leeching", kind: "buff", decay: "ticking", resistedBy: [], priority: 0, tags: [] },
   hooks: { onDealtDamage, onTurnEnd: loseOneStack },
 };

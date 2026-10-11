@@ -12,6 +12,6 @@ function gateAction(owner: CombatUnit, _stacks: number, ctx: CombatContext, stat
 }
 
 export const ambushed: StatusModule = {
-  def: { id: "ambushed", kind: "debuff", decay: "timed", resistedBy: ["agility", "cunning"], priority: 1 },
+  def: { id: "ambushed", kind: "debuff", decay: "timed", resistedBy: ["agility", "cunning"], priority: 1, tags: [] },
   hooks: { gateAction },
 };

@@ -22,11 +22,21 @@ export type StatusId = (typeof STATUS_IDS)[number];
 export type DamageType = "physical" | "arcane";
 export type Target = "self" | "enemy";
 
-export interface Scaling {
-  readonly stat: StatId;
-  /** Added per point of the stat. */
-  readonly per: number;
-}
+/** Status tags: cross-status queries go through these, never through ids (spec: Combat core design). */
+export const STATUS_TAGS = ["dot"] as const;
+export type StatusTag = (typeof STATUS_TAGS)[number];
+
+/**
+ * One scaling term of an amount (spec: How stats, items and skills combine; Synergy effects).
+ * - `{ stat, per }`: + per × the attacker's stat.
+ * - `{ afflictions: true, per }`: + per × the target's Afflictions (different DoTs present, 0-3).
+ * - `{ stacksOfTag, per }`: + per × the target's stacks of statuses with that tag.
+ * Target terms read the target when the hit starts.
+ */
+export type Scaling =
+  | { readonly stat: StatId; readonly per: number }
+  | { readonly afflictions: true; readonly per: number }
+  | { readonly stacksOfTag: StatusTag; readonly per: number };
 
 export type Effect =
   | { readonly type: "damage"; readonly damageType: DamageType; readonly amount: number; readonly target: Target; readonly scaling?: readonly Scaling[]; readonly piercing?: boolean }

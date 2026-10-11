@@ -314,12 +314,14 @@ describe("Hit order step 4: Warded check", () => {
     expect(eventsOf(ctx.events, "Healed")).toEqual([]);
   });
 
-  it("a deflected hit triggers nothing after step 4: no Bleeding stack", () => {
+  it("a deflected hit triggers nothing after step 4: no Bleeding from Bleed power", () => {
+    // Spec 1.5: Bleed power adds Bleeding at step 7, so a deflected hit adds none.
     const ctx = ctxFor();
-    const a = attackerUnit();
+    const a = attackerUnit({ bleedPower: 3 });
     const t = targetUnit({ statuses: { warded: 1, bleeding: 2 } });
     resolveHit(ctx, a, t, phys(10));
     expect(t.statuses.stacks("bleeding")).toBe(2);
+    expect(eventsOf(ctx.events, "StatusApplied")).toEqual([]);
   });
 
   it("Thorns still fires on a deflected hit, and before the deflect", () => {
@@ -363,11 +365,11 @@ describe("Hit order step 4: Warded check", () => {
     const ctx = ctxFor();
     const t = targetUnit({ maxShield: 10, statuses: { warded: 1, bleeding: 1 } });
     resolveHit(ctx, attackerUnit(), t, phys(8, { piercing: true, statuses: [{ status: "burning", stacks: 2 }] }));
-    // 8 straight to HP: 30 - 8 = 22; Bleeding 1 + 1 = 2; Burning 2 applied
+    // 8 straight to HP: 30 - 8 = 22; Bleeding stays 1 (spec 1.5: no stack from a physical hit); Burning 2 applied
     expect(t.hp).toBe(22);
     expect(t.shield).toBe(10);
     expect(t.statuses.stacks("warded")).toBe(1);
-    expect(t.statuses.stacks("bleeding")).toBe(2);
+    expect(t.statuses.stacks("bleeding")).toBe(1);
     expect(t.statuses.stacks("burning")).toBe(2);
     expect(eventsOf(ctx.events, "HitDeflected")).toEqual([]);
     expect(eventsOf(ctx.events, "ChargeUsed")).toEqual([]);
@@ -579,39 +581,26 @@ describe("Hit order step 6: damage triggers — Leeching", () => {
   });
 });
 
-describe("Hit order step 6: damage triggers — Bleeding", () => {
-  it("Bleeding on the target gains a stack if the hit was physical", () => {
-    const ctx = ctxFor();
-    const t = targetUnit({ statuses: { bleeding: 2 } });
-    resolveHit(ctx, attackerUnit(), t, phys(5));
-    expect(t.statuses.stacks("bleeding")).toBe(3);
-    expect(eventsOf(ctx.events, "StatusApplied")).toEqual([{ type: "StatusApplied", unit: "t", status: "bleeding", stacks: 1, total: 3 }]);
-  });
+describe("Bleeding (spec 1.5): a hit adds Bleeding only through Bleed power or the statuses it carries", () => {
+  // Spec 1.5 changelog: "Bleed power replaces the old '+1 Bleeding on a physical hit'."
+  // Status list: Bleeding is "Filled by Bleed power on every hit ..., or by skills."
+  const cases: { name: string; hit: HitSpec; shield?: number }[] = [
+    { name: "a physical hit", hit: phys(5) },
+    { name: "an arcane hit", hit: arc(5) },
+    { name: "a physical hit fully absorbed by Shield", hit: phys(4), shield: 10 },
+    { name: "a Piercing physical hit", hit: phys(4, { piercing: true }), shield: 10 },
+  ];
+  for (const c of cases) {
+    it(`${c.name} on a Bleeding target adds no Bleeding stack (attacker Bleed power 0)`, () => {
+      const ctx = ctxFor();
+      const t = targetUnit({ maxShield: c.shield ?? 0, statuses: { bleeding: 2 } });
+      resolveHit(ctx, attackerUnit(), t, c.hit);
+      expect(t.statuses.stacks("bleeding")).toBe(2);
+      expect(eventsOf(ctx.events, "StatusApplied")).toEqual([]);
+    });
+  }
 
-  it("an arcane hit adds no Bleeding stack", () => {
-    const ctx = ctxFor();
-    const t = targetUnit({ statuses: { bleeding: 2 } });
-    resolveHit(ctx, attackerUnit(), t, arc(5));
-    expect(t.statuses.stacks("bleeding")).toBe(2);
-    expect(eventsOf(ctx.events, "StatusApplied")).toEqual([]);
-  });
-
-  it("A physical hit fully absorbed by Shield still adds a Bleeding stack", () => {
-    const ctx = ctxFor();
-    const t = targetUnit({ maxShield: 10, statuses: { bleeding: 2 } });
-    resolveHit(ctx, attackerUnit(), t, phys(4));
-    expect(t.hp).toBe(30);
-    expect(t.statuses.stacks("bleeding")).toBe(3);
-  });
-
-  it("a Piercing physical hit adds a Bleeding stack", () => {
-    const ctx = ctxFor();
-    const t = targetUnit({ maxShield: 10, statuses: { bleeding: 1 } });
-    resolveHit(ctx, attackerUnit(), t, phys(4, { piercing: true }));
-    expect(t.statuses.stacks("bleeding")).toBe(2);
-  });
-
-  it("A hit never starts Bleeding on its own: a target that is not Bleeding gains nothing", () => {
+  it("a hit never starts Bleeding on its own: a target that is not Bleeding gains nothing", () => {
     const ctx = ctxFor();
     const t = targetUnit();
     resolveHit(ctx, attackerUnit(), t, phys(5));
@@ -619,15 +608,8 @@ describe("Hit order step 6: damage triggers — Bleeding", () => {
     expect(eventsOf(ctx.events, "StatusApplied")).toEqual([]);
   });
 
-  it("A hit that deals 0 damage triggers no Bleeding stack", () => {
-    const ctx = ctxFor();
-    const t = targetUnit({ statuses: { bleeding: 2 } });
-    resolveHit(ctx, attackerUnit({ statuses: { enfeebled: 4 } }), t, phys(10));
-    expect(t.statuses.stacks("bleeding")).toBe(2);
-  });
-
-  it("Bleeding applied by the hit at step 7 does not also gain the step-6 stack (Bloodletter on a fresh target)", () => {
-    // Bloodletter: 4 physical, Piercing, Bleeding 3. Not Bleeding before step 6 -> only the 3 from step 7.
+  it("Bloodletter on a fresh target: only the Bleeding 3 it carries", () => {
+    // Bloodletter: 4 physical, Piercing, Bleeding 3.
     const ctx = ctxFor();
     const t = targetUnit({ maxShield: 5 });
     resolveHit(ctx, attackerUnit(), t, phys(4, { piercing: true, statuses: [{ status: "bleeding", stacks: 3 }] }));
@@ -636,16 +618,12 @@ describe("Hit order step 6: damage triggers — Bleeding", () => {
     expect(t.shield).toBe(5);
   });
 
-  it("Bloodletter on a Bleeding target: +1 at step 6, then +3 at step 7", () => {
-    // 2 + 1 + 3 = 6
+  it("Bloodletter on a Bleeding target: 2 + 3 = 5, one StatusApplied (no extra +1)", () => {
     const ctx = ctxFor();
     const t = targetUnit({ statuses: { bleeding: 2 } });
     resolveHit(ctx, attackerUnit(), t, phys(4, { piercing: true, statuses: [{ status: "bleeding", stacks: 3 }] }));
-    expect(t.statuses.stacks("bleeding")).toBe(6);
-    expect(eventsOf(ctx.events, "StatusApplied")).toEqual([
-      { type: "StatusApplied", unit: "t", status: "bleeding", stacks: 1, total: 3 },
-      { type: "StatusApplied", unit: "t", status: "bleeding", stacks: 3, total: 6 },
-    ]);
+    expect(t.statuses.stacks("bleeding")).toBe(5);
+    expect(eventsOf(ctx.events, "StatusApplied")).toEqual([{ type: "StatusApplied", unit: "t", status: "bleeding", stacks: 3, total: 5 }]);
   });
 
   it("Bleeding on the attacker gains nothing from the attacker's own hit", () => {
@@ -708,7 +686,7 @@ describe("Hit order step 7: statuses carried by the hit", () => {
     resolveHit(ctx, attackerUnit(), t, phys(10, { statuses: [{ status: "burning", stacks: 2 }] }));
     expect(t.hp).toBe(0);
     expect(t.statuses.stacks("burning")).toBe(2);
-    expect(t.statuses.stacks("bleeding")).toBe(2); // step 6 still ran
+    expect(t.statuses.stacks("bleeding")).toBe(1); // spec 1.5: no Bleeding stack from a physical hit
     expect(eventsOf(ctx.events, "UnitFell")).toEqual([{ type: "UnitFell", unit: "t" }]);
     expect(indexOfType(ctx.events, "UnitFell")).toBeLessThan(ctx.events.findIndex((e) => e.type === "StatusApplied" && e.status === "burning"));
   });
@@ -793,7 +771,7 @@ describe("Hit order: fallen units", () => {
     expect(a.hp).toBe(0);
     expect(a.fallen).toBe(true);
     expect(t.hp).toBe(24);
-    expect(t.statuses.stacks("bleeding")).toBe(2); // the rest of step 6 still runs
+    expect(t.statuses.stacks("bleeding")).toBe(1); // spec 1.5: no Bleeding stack from a physical hit
     expect(t.statuses.stacks("burning")).toBe(2);
     expect(eventsOf(ctx.events, "Healed")).toEqual([]);
     expect(eventsOf(ctx.events, "UnitFell")).toEqual([{ type: "UnitFell", unit: "a" }]);
@@ -1039,22 +1017,25 @@ describe("Hit order step 7: resistance", () => {
     }
   });
 
-  it("the step-6 Bleeding stack is still 1 against a high Vitality", () => {
+  it("Bleed power is resisted by Vitality like any application, minimum 1 (Bleed power 3 vs Vitality 7 -> 1)", () => {
+    // Spec 1.5 (replaces the old step-6 Bleeding stack test): Vitality 7 would remove 5; 3 - 5 < 1 -> 1. 2 + 1 = 3.
     const ctx = ctxFor();
     const t = targetUnit({ stats: { vitality: 7 }, statuses: { bleeding: 2 } });
-    resolveHit(ctx, attackerUnit(), t, phys(3));
+    resolveHit(ctx, attackerUnit({ bleedPower: 3 }), t, phys(3));
     expect(t.statuses.stacks("bleeding")).toBe(3);
+    expect(eventsOf(ctx.events, "StatusResisted")).toEqual([{ type: "StatusResisted", unit: "t", status: "bleeding", removed: 2 }]);
   });
 });
 
 describe("Hit order: event order for a full hit", () => {
-  it("HitStarted, ThornsDamage, DamageDealt, ShieldBroken, then step 6 (Healed, Bleeding stack), then step 7", () => {
-    // Attacker: 20/30 HP, Leeching 4. Target: 30 HP, Shield 3, Thorns 2, Bleeding 1.
+  it("HitStarted, ThornsDamage, DamageDealt, ShieldBroken, then step 6 (Healed), then step 7 (hit statuses, Bleed power, Stun power)", () => {
+    // Spec 1.5 (step 6 no longer adds Bleeding; step 7 adds per-hit powers after the hit's statuses).
+    // Attacker: 20/30 HP, Leeching 4, Bleed power 1, Stun power 1. Target: 30 HP, Shield 3, Thorns 2, Bleeding 1.
     // Hit: physical 10, Burning 2.
     // Step 1-2: value 10. Step 3: Thorns 2 -> attacker HP 18. Step 5: 3 Shield + 7 HP -> target 23.
-    // Step 6: Leeching min(4, 10) = 4 -> attacker 22; Bleeding 1 -> 2. Step 7: Burning 2.
+    // Step 6: Leeching min(4, 10) = 4 -> attacker 22. Step 7: Burning 2, then Bleed power 1 (1 -> 2), then Stun power 1.
     const ctx = ctxFor();
-    const a = attackerUnit({ hp: 20, statuses: { leeching: 4 } });
+    const a = attackerUnit({ hp: 20, bleedPower: 1, stunPower: 1, statuses: { leeching: 4 } });
     const t = targetUnit({ maxShield: 3, statuses: { thorns: 2, bleeding: 1 } });
     resolveHit(ctx, a, t, phys(10, { statuses: [{ status: "burning", stacks: 2 }] }));
 
@@ -1066,18 +1047,19 @@ describe("Hit order: event order for a full hit", () => {
       { type: "ThornsDamage", source: "t", target: "a", shieldDamage: 0, hpDamage: 2 },
       { type: "DamageDealt", attacker: "a", target: "t", damageType: "physical", shieldDamage: 3, hpDamage: 7, piercing: false },
       { type: "ShieldBroken", unit: "t" },
-      // Step 6: Leeching first, then the Bleeding stack
+      // Step 6
       { type: "Healed", unit: "a", amount: 4 },
-      { type: "StatusApplied", unit: "t", status: "bleeding", stacks: 1, total: 2 },
-      // Step 7
+      // Step 7: the hit's statuses, then Bleed power, then Stun power
       { type: "StatusApplied", unit: "t", status: "burning", stacks: 2, total: 2 },
+      { type: "StatusApplied", unit: "t", status: "bleeding", stacks: 1, total: 2 },
+      { type: "StatusApplied", unit: "t", status: "stunned", stacks: 1, total: 1 },
     ]);
   });
 
-  it("Order inside step 6: Leeching's Healed comes before Bleeding's StatusApplied", () => {
-    // Attacker 10/30 HP, Leeching 3. Target Bleeding 4. Physical 5: Healed 3, then Bleeding 4 -> 5.
+  it("Leeching (step 6) comes before Bleed power (step 7)", () => {
+    // Attacker 10/30 HP, Leeching 3, Bleed power 1. Target Bleeding 4. Physical 5: Healed 3, then Bleeding 4 -> 5.
     const ctx = ctxFor();
-    const a = attackerUnit({ hp: 10, statuses: { leeching: 3 } });
+    const a = attackerUnit({ hp: 10, bleedPower: 1, statuses: { leeching: 3 } });
     const t = targetUnit({ statuses: { bleeding: 4 } });
     resolveHit(ctx, a, t, phys(5));
     expect(ctx.events.slice(-2)).toEqual([

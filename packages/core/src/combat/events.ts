@@ -1,4 +1,5 @@
 import type { DamageType, StatusId } from "../content/types.ts";
+import type { TriggerEvent } from "./triggers.ts";
 import type { Side } from "./unit.ts";
 
 /**
@@ -40,6 +41,13 @@ export type CombatEvent =
   /** Stacks reached 0 through decay, a meter reset or a used Ambushed stack. */
   | { type: "StatusRemoved"; unit: string; status: StatusId }
   | { type: "TurnEnded"; unit: string }
-  | { type: "CombatEnded"; winner: Side };
+  | { type: "CombatEnded"; winner: Side }
+  // Synergies (M1.3)
+  /** Stacks removed by a consume that landed; not emitted when 0 were removed. */
+  | { type: "Consumed"; unit: string; status: StatusId; stacks: number }
+  /** A convert trigger fired; its gain's StatusApplied follows. */
+  | { type: "TriggerFired"; unit: string; on: TriggerEvent; gain: StatusId; stacks: number; depth: number }
+  /** A trigger beyond the depth cap was ignored. */
+  | { type: "TriggerCapped"; unit: string; on: TriggerEvent; depth: number };
 
 export type CombatEventType = CombatEvent["type"];

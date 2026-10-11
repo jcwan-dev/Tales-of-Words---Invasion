@@ -14,6 +14,6 @@ function gateAction(owner: CombatUnit, stacks: number, ctx: CombatContext, statu
 }
 
 export const paralysed: StatusModule = {
-  def: { id: "paralysed", kind: "debuff", decay: "buildup", resistedBy: ["wisdom"], priority: 3 },
+  def: { id: "paralysed", kind: "debuff", decay: "buildup", resistedBy: ["wisdom"], priority: 3, tags: [] },
   hooks: { gateAction },
 };

@@ -58,3 +58,16 @@ describe("createUnit validation (builder unit tests)", () => {
     expect(Object.isFrozen(u.stats)).toBe(true);
   });
 });
+
+describe("baseValue target scaling (builder unit tests)", () => {
+  it("Afflictions and tag terms read the target passed as the 4th argument", () => {
+    const t = createUnit({ id: "t", side: "enemy", maxHp: 10, statuses: { burning: 2, poisoned: 3, stunned: 9 } });
+    // 1 + 4 x 2 Afflictions + 1 x 5 DoT stacks = 14
+    expect(baseValue(1, [{ afflictions: true, per: 4 }, { stacksOfTag: "dot", per: 1 }], stats, t)).toBe(14);
+  });
+
+  it("the 3-argument form still works for stat terms, and refuses target terms", () => {
+    expect(baseValue(2, [{ stat: "might", per: 1 }], stats)).toBe(7);
+    expect(() => baseValue(2, [{ afflictions: true, per: 1 }], stats)).toThrow(RangeError);
+  });
+});

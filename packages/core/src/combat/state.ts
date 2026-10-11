@@ -1,5 +1,6 @@
 import type { CombatContext } from "./context.ts";
 import { createGateState, type GateState } from "./gate.ts";
+import { createTurnInfo, type TurnInfo } from "./turn-info.ts";
 import type { CombatUnit, Side } from "./unit.ts";
 
 /** A fight in progress (spec: Combat core design). Driven by beginCombat, startTurn and endTurn. */
@@ -27,6 +28,8 @@ export class CombatStateImpl implements CombatState {
   index = 0;
   /** Pooled action-gate result, reset at every gate. */
   readonly gate: GateState = createGateState();
+  /** Pooled turn info for turn hooks, refilled at every turn start and end. */
+  readonly turn: TurnInfo = createTurnInfo();
 
   constructor(ctx: CombatContext, units: readonly CombatUnit[]) {
     this.ctx = ctx;

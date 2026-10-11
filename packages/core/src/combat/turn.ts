@@ -1,8 +1,10 @@
 import type { CombatContext } from "./context.ts";
 import { GATE, resetGate } from "./gate.ts";
+import { DECAYING_POWERS } from "./powers.ts";
 import { checkFightEnd, CombatStateImpl, type CombatState } from "./state.ts";
 import { GATE_HOOKS, TURN_HOOKS, type HookEntry } from "./statuses/registry.ts";
 import type { TurnHook } from "./statuses/types.ts";
+import type { TurnInfo } from "./turn-info.ts";
 import type { CombatUnit } from "./unit.ts";
 
 // The turn controller (spec: Turn pipeline, Turn details; ADR 0006). Status behaviour comes only
@@ -10,7 +12,7 @@ import type { CombatUnit } from "./unit.ts";
 // allocates except the events it pushes.
 
 /**
- * Starts a fight: every Shield to full, every Stun power to full, and the turn order fixed for the
+ * Starts a fight: every Shield to full, every decaying power (Stun) to full, and the turn order fixed for the
  * whole fight: the side with the higher Agility first (the highest on each side; ties go to the
  * player), each side in the order given. Emits CombatStarted. Statuses are left as given.
  * Does not start the first turn.
@@ -20,7 +22,7 @@ export function beginCombat(ctx: CombatContext, units: readonly CombatUnit[]): C
   let enemyAgility = -Infinity;
   for (const u of units) {
     u.shield = u.maxShield;
-    u.stunPower = u.maxStunPower;
+    for (const p of DECAYING_POWERS) u.powers[p.power] = u.fullPowers[p.power];
     if (u.side === "player") playerAgility = Math.max(playerAgility, u.stats.agility);
     else enemyAgility = Math.max(enemyAgility, u.stats.agility);
   }
@@ -44,12 +46,12 @@ export function beginCombat(ctx: CombatContext, units: readonly CombatUnit[]): C
 const impl = (state: CombatState): CombatStateImpl | null => (state instanceof CombatStateImpl ? state : null);
 
 /** Runs one turn hook point on `owner`; with `stopOnFall`, stops as soon as the owner falls. */
-function dispatchTurn(list: readonly HookEntry<TurnHook>[], owner: CombatUnit, ctx: CombatContext, stopOnFall: boolean): void {
+function dispatchTurn(list: readonly HookEntry<TurnHook>[], owner: CombatUnit, ctx: CombatContext, turn: TurnInfo, stopOnFall: boolean): void {
   for (let i = 0; i < list.length; i++) {
     const entry = list[i];
     if (entry === undefined) continue;
     const stacks = owner.statuses.stacksAt(entry.index);
-    if (stacks > 0) entry.hook(owner, stacks, ctx, entry.id);
+    if (stacks > 0) entry.hook(owner, stacks, ctx, entry.id, turn);
     if (stopOnFall && owner.fallen) return;
   }
 }
@@ -69,7 +71,10 @@ export function startTurn(state: CombatState): boolean {
   ctx.events.push({ type: "TurnStarted", unit: unit.id, round: s.round });
 
   // 1. Turn start: damage over time, in priority order; stops once the unit falls.
-  dispatchTurn(TURN_HOOKS.onTurnStart, unit, ctx, true);
+  const turn = s.turn;
+  turn.round = s.round;
+  turn.holdDotDecay = s.round % 2 === 1 && enemySlowsDecay(s, unit);
+  dispatchTurn(TURN_HOOKS.onTurnStart, unit, ctx, turn, true);
   if (unit.fallen) {
     checkFightEnd(ctx);
     if (!s.over) {
@@ -91,8 +96,18 @@ export function startTurn(state: CombatState): boolean {
   return gate.result !== GATE.skip;
 }
 
+/** Slow decay: is a living unit on the other side of `unit` holding `slowEnemyDotDecay`? (Several don't stack.) */
+function enemySlowsDecay(s: CombatStateImpl, unit: CombatUnit): boolean {
+  const units = s.units;
+  for (let i = 0; i < units.length; i++) {
+    const u = units[i];
+    if (u !== undefined && u.side !== unit.side && !u.fallen && u.traits.slowEnemyDotDecay === true) return true;
+  }
+  return false;
+}
+
 /**
- * Turn end for `state.active` (cooldowns tick, ticking decay, Stun power −1), then the next living
+ * Turn end for `state.active` (cooldowns tick, ticking decay, decaying powers −1), then the next living
  * unit becomes active (the next round after the last one). A unit that fell during its own action
  * skips the turn-end effects; TurnEnded is still emitted.
  */
@@ -103,8 +118,15 @@ export function endTurn(state: CombatState): void {
   const ctx = s.ctx;
   if (!unit.fallen) {
     unit.cooldowns.tick();
-    dispatchTurn(TURN_HOOKS.onTurnEnd, unit, ctx, false);
-    if (unit.stunPower > 0) unit.stunPower -= 1;
+    const turn = s.turn;
+    turn.round = s.round;
+    turn.holdDotDecay = false;
+    dispatchTurn(TURN_HOOKS.onTurnEnd, unit, ctx, turn, false);
+    const powers = unit.powers;
+    for (let i = 0; i < DECAYING_POWERS.length; i++) {
+      const p = DECAYING_POWERS[i];
+      if (p !== undefined && powers[p.power] > 0) powers[p.power] -= 1;
+    }
   }
   ctx.events.push({ type: "TurnEnded", unit: unit.id });
   advance(s);
