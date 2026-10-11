@@ -11,6 +11,6 @@ function gateAction(owner: CombatUnit, stacks: number, ctx: CombatContext, statu
 }
 
 export const stunned: StatusModule = {
-  def: { id: "stunned", kind: "debuff", decay: "buildup", resistedBy: ["vitality"], priority: 2 },
+  def: { id: "stunned", kind: "debuff", decay: "buildup", resistedBy: ["vitality"], priority: 2, tags: [] },
   hooks: { gateAction },
 };

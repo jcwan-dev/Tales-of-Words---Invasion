@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { HOOK_NAMES, STATUS_IDS, statusDef, statusIndex, statusModule, type HookName, type StatusId } from "../../../src/index.ts";
-import { DISPATCH_ORDER, GATE_HOOKS, HIT_HOOKS, TURN_HOOKS } from "../../../src/combat/statuses/registry.ts";
+import { DISPATCH_ORDER, GATE_HOOKS, HIT_HOOKS, TAGGED, TURN_HOOKS } from "../../../src/combat/statuses/registry.ts";
 
 // The hooks each status must implement (spec: Status list "Hook" column; Turn details; Stacking).
 const EXPECTED: Record<StatusId, readonly HookName[]> = {
   burning: ["onTurnStart"],
   poisoned: ["onTurnStart"],
-  bleeding: ["onTookDamage", "onTurnStart"],
+  bleeding: ["onTurnStart"], // spec 1.5: no onTookDamage (Bleed power replaced the +1 on a physical hit)
   stunned: ["gateAction"],
   paralysed: ["gateAction"],
   ambushed: ["gateAction"],
@@ -64,5 +64,14 @@ describe("status registry (builder unit tests)", () => {
       if (def.kind === "buff") expect(def.resistedBy).toEqual([]);
       else expect(def.resistedBy.length).toBeGreaterThan(0);
     }
+  });
+
+  it("no status implements onTookDamage any more (the hook point stays for later effects)", () => {
+    expect(HIT_HOOKS.onTookDamage).toEqual([]);
+  });
+
+  it("the dot tag index lists exactly Burning, Bleeding and Poisoned", () => {
+    expect([...TAGGED.dot].sort()).toEqual((["burning", "bleeding", "poisoned"] as const).map((id) => statusIndex(id)).sort());
+    for (const id of STATUS_IDS) expect(TAGGED.dot.includes(statusIndex(id))).toBe(statusDef(id).tags.includes("dot"));
   });
 });

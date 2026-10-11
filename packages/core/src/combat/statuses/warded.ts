@@ -15,6 +15,6 @@ function modifyIncoming(hit: HitState, owner: CombatUnit, _stacks: number, ctx: 
 }
 
 export const warded: StatusModule = {
-  def: { id: "warded", kind: "buff", decay: "charges", resistedBy: [], priority: 0 },
+  def: { id: "warded", kind: "buff", decay: "charges", resistedBy: [], priority: 0, tags: [] },
   hooks: { modifyIncoming },
 };

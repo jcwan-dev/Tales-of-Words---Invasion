@@ -10,6 +10,6 @@ function modifyOutgoing(hit: HitState, _owner: CombatUnit, stacks: number): void
 }
 
 export const dimmed: StatusModule = {
-  def: { id: "dimmed", kind: "debuff", decay: "ticking", resistedBy: ["wisdom"], priority: 0 },
+  def: { id: "dimmed", kind: "debuff", decay: "ticking", resistedBy: ["wisdom"], priority: 0, tags: [] },
   hooks: { modifyOutgoing, onTurnEnd: loseOneStack },
 };

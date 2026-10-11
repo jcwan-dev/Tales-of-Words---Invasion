@@ -10,6 +10,6 @@ function modifyOutgoing(hit: HitState, _owner: CombatUnit, stacks: number): void
 }
 
 export const enfeebled: StatusModule = {
-  def: { id: "enfeebled", kind: "debuff", decay: "ticking", resistedBy: ["vitality"], priority: 0 },
+  def: { id: "enfeebled", kind: "debuff", decay: "ticking", resistedBy: ["vitality"], priority: 0, tags: [] },
   hooks: { modifyOutgoing, onTurnEnd: loseOneStack },
 };

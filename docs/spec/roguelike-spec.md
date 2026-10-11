@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.4 (11 Oct 2026)
+**Version:** Draft 1.5 (11 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.5:** Damage-over-time powers: Bleed power (every hit), Burn power and Poison power (once per attack) from any source; Bleed power replaces the old "+1 Bleeding on a physical hit". Synergies defined: Afflictions and stack-count scaling, consume (a normal hit, stacks kept if deflected), convert triggers with a recursion cap of 4, slow decay (enemy DoTs lose stacks every other round).
 - **1.4:** Stun and paralysis are build-up meters: Stun power (applied every hit, −1 per turn, full again each fight) and Paralysis power (applied once per attack, never drops) fill the target's meter; at 10 stacks the target loses its next turn (Stunned) or has a 50% chance to (Paralysed), then the meter resets. No immunity turn. Lei gives Stunned 4, Bing Paralysed 3. Turn order (higher Agility side first), cooldown meaning, turn details defined.
 - **1.3:** Hit order details: Piercing ignores Warded (fixes the contradiction with "Warded bosses demand Piercing"); fallen units; status hooks get owner and stacks; hook lists built once at load; certain chances use no RNG; damage modifiers net out and round down; Shield damage counts for damage triggers; Thorns damage is untyped and hits Shield first; resistance on timed statuses removes turns; charges are used when the hit starts; deflected and 0-damage hits defined.
 - **1.2:** Magic is words of power: every arcane skill is a Word (spoken form + glyph + meaning), cast with one generic animation (shout, glyph appears, flies to target). Firebolt renamed 火 Huo. Stats reframed for words (Arcana = power, Intelligence = vocabulary, Wisdom = healing/warding words). Placeholder Words; compound Words as a later idea.
@@ -214,7 +215,7 @@ Statuses change whether a unit acts, how hard it hits, and what happens when it 
 **Turn details** (decided 11 Oct 2026):
 - **Fight start:** every unit's Shield refills to full and its Stun power goes back to full (see "Stun and paralysis").
 - **Turn order:** the side with the higher Agility acts first: the player's Agility against the highest Agility among the enemies. Ties go to the player. Then turns alternate: the player, then each living enemy in order, then the player again. One pass through all living units is a **round**.
-- **Turn start, in order:** damage over time ticks (Burning, then Bleeding, then Poisoned). Each deals damage equal to its stacks, then loses 1 stack. Burning and Bleeding hit Shield first; Poisoned goes straight to HP. This damage is not an attack: it triggers no Thorns, Warded, Leeching or Bleeding stack. A unit that falls here takes no action and its turn ends.
+- **Turn start, in order:** damage over time ticks (Burning, then Bleeding, then Poisoned). Each deals damage equal to its stacks, then loses 1 stack (except under slow decay, see "Synergy effects"). Burning and Bleeding hit Shield first; Poisoned goes straight to HP. This damage is not an attack: it triggers no Thorns, Warded, Leeching or powers. A unit that falls here takes no action and its turn ends.
 - **Action gate:** checked after turn-start damage. Ambushed, then Stunned 10+, then Paralysed 10+ (see "Stun and paralysis"). A turn that is already lost doesn't check the others: their stacks stay for the next turn. A lost turn still runs turn end.
 - **Cooldowns:** a skill with cooldown N can't be used on its owner's next N turns. Cooldown 1: used on turn 1, not ready on turn 2, ready on turn 3. Counters go down at the end of each of the owner's turns, skipped turns included, except on the turn the skill was used.
 - **Turn end, in order:** cooldowns tick; ticking statuses other than damage over time lose 1 stack (Emboldened, Enfeebled, Kindled, Dimmed, Thorns, Leeching); the unit's Stun power drops by 1 (minimum 0).
@@ -243,20 +244,19 @@ Every hit (skill, Strike or enemy move) goes through the same steps:
 3. **Attacked triggers:** Thorns fires now, whether or not the hit lands.
 4. **Warded check:** if the target is Warded, the hit is deflected, one charge is used, and the hit stops (no damage, no statuses). A Piercing hit is never deflected and uses no Warded charge.
 5. **Shield, then HP:** damage takes Shield first, the rest goes to HP. Piercing skips Shield.
-6. **Damage triggers:** Leeching heals the attacker; Bleeding on the target gains a stack if the hit was physical. Thorns damage is not an attack, so it never triggers Thorns or Warded back.
-7. **Statuses** carried by the skill are applied, reduced by the target's resistance stat.
+6. **Damage triggers:** Leeching heals the attacker. Thorns damage is not an attack, so it never triggers Thorns or Warded back.
+7. **Statuses** carried by the skill are applied, reduced by the target's resistance stat. Then the attacker's powers that act on every hit: Bleed power, then Stun power (see "Powers").
 
 **Hit order details** (decided 10 Oct 2026):
 - **Damage modifiers net out, then round down.** Emboldened and Enfeebled (physical), or Kindled and Dimmed (arcane), combine as one modifier: (buff stacks − debuff stacks) × 25%. Emboldened 3 and Enfeebled 1 = +50%. The result is rounded down and is never below 0.
-- **Shield damage counts as damage.** Any damage to Shield or HP counts for damage triggers. A physical hit fully absorbed by Shield still adds a Bleeding stack. Only a target that is already Bleeding gains the stack; a hit never starts Bleeding on its own. Leeching heals up to the total damage dealt to Shield and HP.
-- **Thorns damage is untyped.** It hits the attacker's Shield first, then HP. It is neither physical nor arcane, so attacker modifiers don't apply to it. It triggers nothing: no Thorns, Warded, Leeching or Bleeding stack.
+- **Shield damage counts as damage.** Any damage to Shield or HP counts for damage triggers. Leeching heals up to the total damage dealt to Shield and HP.
+- **Thorns damage is untyped.** It hits the attacker's Shield first, then HP. It is neither physical nor arcane, so attacker modifiers don't apply to it. It triggers nothing: no Thorns, Warded or Leeching, and no powers.
 - **A hit always finishes.** If the attacker falls to Thorns at step 3, or the target falls at step 5, the remaining steps still run; statuses on a fallen unit have no effect later.
 - **Several resisting stats** (Ambushed: Agility, Cunning): the highest one counts. A resisting stat of 2 or less has no effect (it never adds stacks).
 - **Fallen units:** a hit by or against a unit that has already fallen does nothing. A unit that falls during a hit cannot be healed by that hit (no Leeching on an attacker killed by Thorns).
-- **Order inside step 6:** Leeching first, then the Bleeding stack.
 - **Resistance on timed statuses reduces turns.** For timed statuses (Ambushed), each point of the resisting stat above 2 removes 1 turn (minimum 1). Stunned and Paralysed are build-up meters and lose stacks like any status. A chance to apply is rolled first; resistance never changes the chance. Only chances strictly between 0% and 100% use the combat RNG, so certain effects never shift later rolls.
 - **Piercing ignores Warded.** A Piercing hit (the keyword on the hit, or a Piercing charge on the attacker) is never deflected, uses no Warded charge, and skips Shield. A Piercing charge is used at step 2; a hit that already has the Piercing keyword uses no charge. A Warded charge is used at step 4.
-- **A deflected hit triggers nothing after step 4:** no damage, no Leeching, no Bleeding stack, no statuses. The Warded charge is used before the deflect is reported.
+- **A deflected hit triggers nothing after step 4:** no damage, no Leeching, no statuses, no powers. The Warded charge is used before the deflect is reported.
 - **A hit that deals 0 damage** (e.g. after modifiers) still goes through steps 5–7, so its statuses still apply. It triggers no damage triggers (nothing was dealt).
 
 A skipped turn shows the reason as floating text over the unit ("Stunned", "Ambushed") and moves on after a short pause.
@@ -272,7 +272,7 @@ interface StatusEffect {
   onAttacked?(hit, owner, stacks, ctx)            // thorns: fires even when deflected
   modifyIncoming?(hit, owner, stacks, ctx)        // warded
   onDealtDamage?(hit, owner, stacks, ctx)         // leeching
-  onTookDamage?(hit, owner, stacks, ctx)          // bleeding gains a stack
+  onTookDamage?(hit, owner, stacks, ctx)          // no status uses it today (converts are unit traits)
   onTurnEnd?(owner, stacks, ctx)                  // ticking statuses lose a stack
   onExpire?(unit, ctx)
 }
@@ -296,7 +296,7 @@ Proposed names for the first set; numbers are starting values for playtesting.
 | **Damage over time** (stacks = damage, −1 stack each turn) | | | | |
 | Burning | Debuff | At turn start, take damage equal to stacks, then lose 1 stack. Hits Shield first. | Turn start | Arcana |
 | Poisoned | Debuff | Same, but goes straight to HP, ignoring Shield. | Turn start | Vitality |
-| Bleeding | Debuff | Same, hits Shield first. +1 stack each time the unit takes a physical hit. | Turn start, took damage | Vitality |
+| Bleeding | Debuff | Same, hits Shield first. Filled by Bleed power on every hit (so multi-hit attacks bleed faster), or by skills. | Turn start | Vitality |
 | **Lost turns** | | | | |
 | Stunned | Debuff | Build-up meter. At 10+ stacks the unit loses its next turn and the meter resets to 0. Filled by Stun power on every hit, or by skills. | Action gate | Vitality |
 | Paralysed | Debuff | Build-up meter. At 10+ stacks the unit has a 50% chance to lose its next turn, then the meter resets to 0. Filled by Paralysis power once per attack, or by skills. | Action gate | Wisdom |
@@ -314,7 +314,7 @@ Proposed names for the first set; numbers are starting values for playtesting.
 
 Name notes: Weakened → **Enfeebled**, Weak will → **Dimmed**, Empowered → **Emboldened**, Strong will → **Kindled** (pairs read as opposites). Shielded → **Warded** (avoids confusion with the Shield bar). Drain life → **Leeching**.
 
-Poisoned ignores Shield and Bleeding grows with physical hits, so the three damage-over-time effects play differently and reward different builds.
+Poisoned ignores Shield and Bleeding is applied on every hit, so the three damage-over-time effects play differently and reward different builds.
 
 ### Stacking
 Stacking statuses is the main way to build something overpowered, and that's intended.
@@ -329,18 +329,37 @@ Stacking statuses is the main way to build something overpowered, and that's int
 - **Lost turns can't chain forever:** the meters reset to 0 after they trigger, and Stun power drops every turn, so another lost turn always needs a new build-up. There is no immunity turn.
 - Enemies follow the same rules (Thorns enemies punish multi-hit; Warded bosses demand Piercing).
 
+### Powers
+A power is a unit attribute that adds a status to the target as you attack. Many sources give powers (weapons, items, skills, Words, companions, paths) and they add up, so each status can be a build.
+
+| Power | Adds | When | Changes during a fight |
+|---|---|---|---|
+| Bleed power X | Bleeding X | Every hit that lands | Never drops |
+| Burn power X | Burning X | Once per attack, if a hit landed | Never drops |
+| Poison power X | Poisoned X | Once per attack, if a hit landed | Never drops |
+| Stun power X | Stunned X | Every hit that lands | −1 at the end of each of your turns; full again each fight |
+| Paralysis power X | Paralysed X | Once per attack, if a hit landed | Never drops |
+
+- Per-hit powers are added at hit step 7, after the hit's own statuses: Bleed power, then Stun power. Per-attack powers are added after the attack's last hit: Burn, Poison, then Paralysis power.
+- Powers follow the hit rules: no stacks from a deflected hit; a 0-damage hit still adds them; power 0 adds nothing; resistance applies to each application (minimum 1). Per-attack powers are not added if the attacker or the target has fallen by the end of the attack.
+- Damage over time does the rest: each stack does 1 damage at the unit's turn start, then 1 stack is lost, so keeping a DoT topped up builds into large damage.
+
 ### Synergy effects
 Items, skills and paths can read statuses as well as apply them:
-- **Afflictions** = number of different DoTs on a target (0–3). Effects can scale with it.
-- **Consume** effects remove stacks for a payoff (detonate all Burning for double damage).
-- **Convert** effects turn one status into another (each deflect gives +1 Thorns).
-- **Slow decay** effects change how stacks run out (DoTs lose stacks every other turn).
+- **Afflictions** = number of different DoTs on a target (0–3). Damage can scale with it, and with the number of stacks of a tag on the target (Fester: 4 damage per Affliction + 1 per DoT stack).
+- **Consume** effects remove all stacks of one status for a burst: a normal typed hit dealing stacks × multiplier (Combustion: all Burning, ×3, arcane). It goes through the hit order: modifiers apply, Warded can deflect it, Shield first. The stacks are counted when the hit starts. If the hit isn't deflected, all stacks of that status are removed at the end of the hit (including any the hit itself added); a deflected consume keeps them. A consume with 0 stacks still hits for 0.
+- **Convert** effects are triggers: when something happens to a unit, it gains a status (Mirror Ward: each deflect gives +1 Thorns). Triggers: a deflect, being attacked, dealing damage, taking damage. Once triggers exist that can be set off by other triggers (none do today), chains are capped at a depth of 4 per hit; deeper triggers are ignored and the event log notes it. Trigger details:
+  - **Timing:** a deflect trigger fires right after the deflect; dealing-damage then taking-damage triggers fire at step 6, after Leeching; being-attacked triggers fire at the end of the hit (after a consume has removed its stacks). A trigger never changes the hit that set it off (being attacked can't grant a Warded that deflects that same hit).
+  - The status gained is the unit's own, so resistance doesn't apply.
+  - A unit that has fallen doesn't trigger.
+  - Thorns damage and damage over time set off no triggers.
+- **Slow decay** (Plague Censer): while a unit with it is alive, damage over time on the units of the other side loses a stack only every other round (rounds 2, 4, 6…). Damage still happens every turn. Several sources don't stack.
 All four are new effect types and hooks in the same system.
 
 ### Example builds
 | Build | Core statuses | Key pieces (placeholders) | Weak against |
 |---|---|---|---|
-| The Triple Rot | Burning, Bleeding, Poisoned | Fester (skill): 4 damage per Affliction + 1 per DoT stack · Plague Censer (accessory): DoTs lose stacks every other turn · Bloodletter | Short fights, cleansing enemies, high-Vitality bosses |
+| The Triple Rot | Burning, Bleeding, Poisoned | Fester (skill): 4 damage per Affliction + 1 per DoT stack · Plague Censer (accessory): DoTs lose stacks every other round · Bloodletter | Short fights, cleansing enemies, high-Vitality bosses |
 | The Bramble Wall | Warded, Thorns | Briar Mail (armor): start fights with Thorns 3 · Mirror Ward (accessory): each deflect gives +1 Thorns · Mara's Smoke Bomb | Enemies that don't attack (DoT casters), Piercing |
 | The Red Feast | Emboldened, Leeching | Multi-hit Strike (Twin Knives) · Bloodthirst (skill): Emboldened 2, Leeching 3 · The Glutton's Path: Leeching never drops below 1 | Warded enemies, Thorns |
 | The Pyre | Kindled, Burning | Huo (火), Ember Charm · Combustion (skill): consume all Burning, deal triple · Ashwood Staff (arcane Strike) | Dimmed, high-Arcana enemies |
@@ -523,7 +542,7 @@ docs/adr/        architecture decision records
 - **Hooks are pre-sorted.** For each hook (turn start, action gate, outgoing, attacked, incoming, took damage, dealt damage, turn end), the core keeps the list of statuses that implement it, built once at load. Dispatch only touches those statuses and skips any the unit has no stacks of (ADR 0005).
 - **Statuses never name other statuses.** Cross-status logic goes through tags and queries (`countWithTag("dot")` for Afflictions), so adding a status never means editing another.
 - **The hit pipeline is a fixed list of stages** matching the hit order in this spec. New behaviour adds a hook or an effect, not a stage, unless an ADR says otherwise.
-- **Recursion guard:** triggers caused by triggers are capped per hit (for example depth 4), so a bad content combination can't loop forever.
+- **Recursion guard:** triggers caused by triggers are capped at depth 4 per hit, so a bad content combination can't loop forever.
 - **The event log** is the single output: the UI animates it, tests assert on it, replays compare it.
 
 ### Monetisation architecture

@@ -19,6 +19,6 @@ function onAttacked(hit: HitState, owner: CombatUnit, stacks: number, ctx: Comba
 }
 
 export const thorns: StatusModule = {
-  def: { id: "thorns", kind: "buff", decay: "ticking", resistedBy: [], priority: 0 },
+  def: { id: "thorns", kind: "buff", decay: "ticking", resistedBy: [], priority: 0, tags: [] },
   hooks: { onAttacked, onTurnEnd: loseOneStack },
 };

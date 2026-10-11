@@ -10,6 +10,6 @@ function modifyOutgoing(hit: HitState, _owner: CombatUnit, stacks: number): void
 }
 
 export const emboldened: StatusModule = {
-  def: { id: "emboldened", kind: "buff", decay: "ticking", resistedBy: [], priority: 0 },
+  def: { id: "emboldened", kind: "buff", decay: "ticking", resistedBy: [], priority: 0, tags: [] },
   hooks: { modifyOutgoing, onTurnEnd: loseOneStack },
 };

@@ -4,7 +4,7 @@
  * every content pack, and at load time in development builds.
  */
 import { isStatId, STAT_IDS } from "../model/stats.ts";
-import { STATUS_IDS, type ContentDef, type ContentKind, type ContentPack } from "./types.ts";
+import { STATUS_IDS, STATUS_TAGS, type ContentDef, type ContentKind, type ContentPack } from "./types.ts";
 
 export interface ContentFile {
   readonly path: string;
@@ -66,8 +66,16 @@ class Checker {
   scaling(v: unknown, field: string): void {
     if (v === undefined) return;
     if (!Array.isArray(v)) return this.fail(field, "must be an array");
+    const shape = "must be { stat, per }, { afflictions: true, per } or { stacksOfTag, per }";
     v.forEach((s, i) => {
-      if (!isObj(s) || !isStatId(s["stat"]) || !isNum(s["per"])) this.fail(`${field}[${i}]`, "must be { stat, per }");
+      if (!isObj(s) || !isNum(s["per"])) return this.fail(`${field}[${i}]`, shape);
+      const kinds = (s["stat"] !== undefined ? 1 : 0) + (s["afflictions"] !== undefined ? 1 : 0) + (s["stacksOfTag"] !== undefined ? 1 : 0);
+      if (kinds !== 1) return this.fail(`${field}[${i}]`, shape);
+      if (s["stat"] !== undefined && !isStatId(s["stat"])) this.fail(`${field}[${i}].stat`, `unknown stat; expected one of ${STAT_IDS.join(", ")}`);
+      if (s["afflictions"] !== undefined && s["afflictions"] !== true) this.fail(`${field}[${i}].afflictions`, "must be true");
+      if (s["stacksOfTag"] !== undefined && !(STATUS_TAGS as readonly unknown[]).includes(s["stacksOfTag"])) {
+        this.fail(`${field}[${i}].stacksOfTag`, `unknown tag; expected one of ${STATUS_TAGS.join(", ")}`);
+      }
     });
   }
   effects(o: Obj): void {
