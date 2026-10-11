@@ -9,7 +9,7 @@
  *   then 5 measured passes, median ratio.
  * - Workload hash: FNV-1a over every fight's event log (computed in the warm-up pass, untimed).
  *
- * Usage: pnpm --filter @tow/sim bench [-- --check | --record] [--fights N]
+ * Usage: pnpm --filter @tow/sim bench [-- --check | --record [--force]] [--fights N]
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";
@@ -223,7 +223,11 @@ function hashString(text: string): number {
 
 const mix = (h: number, v: number): number => Math.imul(h ^ v, 16777619) >>> 0;
 
-/** Order-sensitive hash of one event: every field name and value (numbers, strings, booleans, null, arrays). */
+/**
+ * Order-sensitive hash of one event: every field name and value (numbers, strings, booleans, null, and
+ * arrays of plain values). Nested object fields are not hashed; no event has one today. If one is added,
+ * hash it here, or a rules change inside it won't show in the workload hash.
+ */
 function hashEvent(hash: number, e: CombatEvent): number {
   let h = hash;
   const fields = e as unknown as Readonly<Record<string, unknown>>;
@@ -244,7 +248,7 @@ function hashEvent(hash: number, e: CombatEvent): number {
 
 function calibrate(): number {
   // Like the workload: short-lived small objects pushed to logs that are dropped (GC pressure),
-  // integer maths and property reads. Fixed size, about a third of the workload's time.
+  // integer maths and property reads. Fixed size, about a seventh of the workload's time (ratio about 7).
   const started = performance.now();
   let acc = 0;
   for (let round = 0; round < 20_000; round++) {
@@ -370,16 +374,27 @@ function readBaseline(): BaselineFile | null {
 }
 
 if (process.argv.includes("--record")) {
-  // Adds or replaces the entry for this CPU; entries for other CPUs are kept.
+  // Adds or replaces the entry for this CPU; entries for other CPUs are kept. A file that can't be read is
+  // not overwritten unless --force is given (it may hold CI baselines for other CPUs).
   let current: BaselineFile | null = null;
+  let readable = true;
   try {
     current = readBaseline();
   } catch (e) {
-    console.log(annotation({ level: "notice", text: `starting a new baseline file (${e instanceof Error ? e.message : String(e)})` }, result));
+    readable = false;
+    const why = e instanceof Error ? e.message : String(e);
+    if (process.argv.includes("--force")) {
+      console.log(annotation({ level: "notice", text: `--force: replacing the unreadable baseline file (${why})` }, result));
+    } else {
+      console.log(annotation({ level: "error", text: `not recording: ${why}. Fix the file, or pass --force to start a new one` }, result));
+      process.exitCode = 1;
+    }
   }
-  const file = recordRun(current, result, PASSES, `${process.env["GITHUB_SHA"] ?? "local"} ${process.version} ${process.platform}`);
-  writeFileSync(BASELINE_FILE, `${JSON.stringify(file, null, 2)}\n`);
-  console.log(annotation({ level: "notice", text: `baseline recorded for this CPU in tools/sim/bench-baseline.json` }, result));
+  if (readable || process.argv.includes("--force")) {
+    const file = recordRun(current, result, PASSES, `${process.env["GITHUB_SHA"] ?? "local"} ${process.version} ${process.platform}`);
+    writeFileSync(BASELINE_FILE, `${JSON.stringify(file, null, 2)}\n`);
+    console.log(annotation({ level: "notice", text: `baseline recorded for this CPU in tools/sim/bench-baseline.json` }, result));
+  }
 }
 
 if (process.argv.includes("--check")) {

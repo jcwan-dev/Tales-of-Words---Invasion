@@ -29,7 +29,10 @@ export interface BaselineEntry {
   perHitUs: number;
   perRoundUs: number;
   workloadHash: string;
-  /** How many measured passes the recorded ratio is the median of. */
+  /**
+   * How many measurements the entry stands for: the measured passes when written by --record, or the CI
+   * runs the median was taken from when entered by hand.
+   */
   samples: number;
   recordedFrom: string;
 }

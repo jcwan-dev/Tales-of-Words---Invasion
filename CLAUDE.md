@@ -27,7 +27,10 @@ pnpm dev                # app at http://localhost:5173
 pnpm test:e2e           # browser tests against the production build
 pnpm validate:content
 pnpm sim -- --runs 1000 --seed any
+pnpm --filter @tow/sim bench -- --check    # performance benchmark against tools/sim/bench-baseline.json
+pnpm --filter @tow/sim bench -- --record   # write this machine's CPU entry (local experiments; CI numbers go in by hand)
 ```
+Benchmark baseline: one entry per CPU model, taken from CI. Copy the numbers from the CI notice "no baseline for <cpu>" into `byCpu`, using the median of several runs. Re-record only when the workload hash changes on purpose; a CPU with no entry only checks the per-hit and per-round budgets.
 
 ## Code rules (the reviewer's checklist)
 1. `packages/core` imports nothing from `app`, `platform`, `narrative`, React, the DOM, Node or Capacitor. Enforced by ESLint.
