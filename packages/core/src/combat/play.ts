@@ -24,19 +24,20 @@ export type PlayRejection =
   | "not_allowed"
   | "bad_target";
 
-export type PlayResult = { ok: true } | { ok: false; reason: PlayRejection };
+export type PlayResult = { readonly ok: true } | { readonly ok: false; readonly reason: PlayRejection };
 
-const OK: PlayResult = { ok: true };
-const REJECTIONS: Readonly<Record<PlayRejection, PlayResult>> = {
-  fight_over: { ok: false, reason: "fight_over" },
-  not_your_turn: { ok: false, reason: "not_your_turn" },
-  turn_not_started: { ok: false, reason: "turn_not_started" },
-  cannot_act: { ok: false, reason: "cannot_act" },
-  unknown_card: { ok: false, reason: "unknown_card" },
-  on_cooldown: { ok: false, reason: "on_cooldown" },
-  not_allowed: { ok: false, reason: "not_allowed" },
-  bad_target: { ok: false, reason: "bad_target" },
-};
+// Shared and frozen: a result is never built on the turn path, and no caller can change one.
+const OK: PlayResult = Object.freeze({ ok: true });
+const REJECTIONS: Readonly<Record<PlayRejection, PlayResult>> = Object.freeze({
+  fight_over: Object.freeze({ ok: false, reason: "fight_over" }),
+  not_your_turn: Object.freeze({ ok: false, reason: "not_your_turn" }),
+  turn_not_started: Object.freeze({ ok: false, reason: "turn_not_started" }),
+  cannot_act: Object.freeze({ ok: false, reason: "cannot_act" }),
+  unknown_card: Object.freeze({ ok: false, reason: "unknown_card" }),
+  on_cooldown: Object.freeze({ ok: false, reason: "on_cooldown" }),
+  not_allowed: Object.freeze({ ok: false, reason: "not_allowed" }),
+  bad_target: Object.freeze({ ok: false, reason: "bad_target" }),
+});
 
 const impl = (state: CombatState): CombatStateImpl | null => (state instanceof CombatStateImpl ? state : null);
 

@@ -77,8 +77,8 @@ export interface CombatUnit {
   readonly moves: readonly EnemyMove[];
   /** Compiled move cards, parallel to `moves` (rules internals). */
   readonly movePlans: readonly CardPlan[];
-  /** The id of the move the unit will use next (its intent); null without moves or with none ready. */
-  intent: string | null;
+  /** The id of the move the unit will use next (its intent); null without moves or with none ready. Set by the rules. */
+  readonly intent: string | null;
 }
 
 const NO_TRAITS: UnitTraits = Object.freeze({});
@@ -157,6 +157,14 @@ class Unit implements CombatUnit {
   }
 }
 
+/**
+ * Rules internals (moves.ts): sets a unit's intent. `CombatUnit.intent` is readonly to callers; units
+ * come from createUnit, so the class narrows without a cast.
+ */
+export function setIntent(unit: CombatUnit, id: string | null): void {
+  if (unit instanceof Unit) unit.intent = id;
+}
+
 const nonNegativeInt = (value: number, field: string): number => {
   if (!Number.isInteger(value) || value < 0) throw new RangeError(`createUnit: ${field} must be a non-negative integer, got ${value}`);
   return value;
@@ -177,7 +185,9 @@ export function createUnit(init: UnitInit): CombatUnit {
   if (init.side === "player" && cards.length > MAX_PLAYER_CARDS) {
     throw new RangeError(`createUnit: a player holds at most ${MAX_PLAYER_CARDS} cards, got ${cards.length}`);
   }
+  if (new Set(cards.map((c) => c.id)).size !== cards.length) throw new RangeError("createUnit: card ids must be unique");
   const moves = init.moves ?? [];
+  if (new Set(moves.map((m) => m.card.id)).size !== moves.length) throw new RangeError("createUnit: move ids must be unique");
   for (const m of moves) {
     if (!(Number.isFinite(m.weight) && m.weight > 0)) throw new RangeError(`createUnit: move ${m.card.id} needs a weight > 0, got ${m.weight}`);
   }

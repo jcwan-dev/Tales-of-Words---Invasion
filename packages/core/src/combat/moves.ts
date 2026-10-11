@@ -1,6 +1,6 @@
 import type { CombatContext } from "./context.ts";
 import { gateAllows, type GateState } from "./gate.ts";
-import type { CombatUnit } from "./unit.ts";
+import { setIntent, type CombatUnit } from "./unit.ts";
 
 /**
  * Picks the unit's next move (spec: Enemy moves) by weight among its ready moves (and, with a gate,
@@ -32,7 +32,7 @@ export function pickIntent(ctx: CombatContext, unit: CombatUnit, gate: GateState
     }
   }
   const move = chosen >= 0 ? moves[chosen] : undefined;
-  unit.intent = move === undefined ? null : move.card.id;
+  setIntent(unit, move === undefined ? null : move.card.id);
   if (move !== undefined) ctx.events.push({ type: "IntentChosen", unit: unit.id, move: move.card.id });
 }
 

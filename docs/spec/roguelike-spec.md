@@ -19,7 +19,7 @@ A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormad
 - **0.9:** Stacking rules (unlimited stacks; ticking, charge and timed decay; resistance lowers stacks applied). Thorns now fires on being attacked, even when Warded deflects. Synergy effects (Afflictions, consume, convert, slow decay) and example OP builds. Poisoned and Bleeding twists confirmed.
 - **0.8:** Two life bars for every unit: Shield (hit first, refills each fight) and HP (carries over). Armor, accessories and some weapons give Shield and HP. Full named status list (Burning, Poisoned, Bleeding, Stunned, Paralysed, Ambushed, Enfeebled, Dimmed, Emboldened, Kindled, Warded, Thorns, Leeching, Piercing). Damage typed physical or arcane. Hit order defined. Hidden merged into Warded; Dirty Trick now applies Enfeebled.
 - **0.7:** Max 5 skills total (Strike and companion skill included); gaining one when full means forgetting one or leaving the new one. Strike is the only no-cooldown skill and can be forgotten. Intelligence no longer gives a skill slot (gives an extra option when offered skills). New modular turn pipeline and status system (stun, paralysis, ambush, silence, etc.). New "Learning a skill" screen.
-- **0.6:** Combat screen redesigned for portrait: arena on top (character and companion left vs enemy right), floating damage/heal/effect text from each head, intent line, character panel with HP/armor and buff/debuff chips, skill cards along the bottom.
+- **0.6:** Combat screen redesigned for portrait: arena on top (character and companion left vs enemy right), floating damage/heal/effect text from each head, intent line, character panel with HP/armor/energy and buff/debuff chips, skill cards along the bottom.
 - **0.5:** Slots redefined. Character = 2 favoured stats that level faster (+2 vs +1) and event triggers (via tags). Companions = special skill and event triggers. Weapon = flat stat bonus and basic attack (no cooldown). Armor = stats and/or HP. Accessory = flexible (skill, stats, HP). Starting technique pick added (1 of 3 before Act I). All characters start at 2 in every stat, 3 in favoured.
 - **0.4:** Each skill now scales with its own stats (not its item's). Skills are the combat actions, plus a free default attack (Strike) from the weapon. Starting skills: 1 each from character, weapon, armor, accessory. Items no longer have primary/secondary stats; the weapon's Strike scales with the weapon's stat.
 - **0.3:** Three affinities replaced by seven stats: Might, Vitality, Cunning, Agility, Arcana, Intelligence, Wisdom. Items now have a primary and an optional secondary stat. Act-end stat raises added.
@@ -121,7 +121,7 @@ Seffira, Viskan and Lina are not playable. They are legendary figures of the wor
 - **A unit's cards** are its skills for the fight, at most 5 for the player. Each card is ready or on cooldown (see "Turn details": cooldown N means N turns of waiting).
 - **Using a card** is the turn's one action. It must be ready and allowed by the action gate (a restrict filter can forbid it). The player chooses an enemy target for effects that target "the chosen enemy"; with one enemy it is chosen automatically. Effects run in the card's order; each damage effect is one attack of 1 or more hits (Twin Knives: 2). Then the card goes on cooldown and the turn ends.
 - **Statuses on a damaging card ride on its hits.** If a card has a damage effect on the chosen enemy, its status effects on that enemy are carried by every hit of the first such damage effect (step 7 of the hit order), so a deflected hit applies none (Dirty Trick into Warded: no Enfeebled). A card with no damage effect applies its statuses directly: chance and resistance apply, but nothing can deflect it, since it is not an attack. Effects on the user (heal, restore Shield, own statuses) always apply directly.
-- **Which enemies a riding status reaches:** a status effect on enemies rides on the hits of the card's first damage effect against each enemy it covers; an enemy that damage effect doesn't hit gets the status directly. A status on "the chosen enemy" only rides on hits against that enemy.
+- **Which enemies a riding status reaches:** a status effect on enemies rides on the hits of the card's first damage effect on any enemy; enemies that damage effect doesn't hit get the status directly (it never rides on a later damage effect). A status on "the chosen enemy" only rides on hits against that enemy.
 - Statuses a card puts on its user are the user's own, so resistance doesn't apply (as for converts).
 - Heal and restore Shield scale only with the user's stats and statuses, never the target's.
 - Only player-side units use cards; an enemy acts through its moves. A card or move whose target has fallen during the card is skipped for that target.
@@ -300,7 +300,7 @@ function runTurn(unit, ctx) {
   const gate = combineGates(unit.statuses.map(s => s.gateAction?.(unit, ctx)))
   if (gate.skip)          ctx.showFloat(unit, gate.reason)
   else if (gate.redirect) resolve(gate.redirect, ctx)
-  else                    resolve(await chooseAction(unit, gate.filter), ctx)  // may be "end turn"
+  else                    resolve(await chooseAction(unit, gate.filter), ctx)  // one action; may be "pass"
   unit.cards.tickCooldowns()             // always, even when skipped
   each(unit.statuses, s => s.onTurnEnd?.(unit, ctx))   // ticking statuses lose a stack; Stun power −1
 }
@@ -418,7 +418,7 @@ Top to bottom:
 3. **Enemy intent** under the arena: the written hint, plus a precise readout (type and rough damage) only with enough Intelligence.
 4. **Character panel:** Shield bar over HP bar, then buff and debuff chips. Tapping a chip explains it. Every arena unit shows the same two bars under its feet.
 5. **Skill cards** along the bottom, in thumb reach. Each card: name, current value from your stats, scaling stats, source. Strike always first with a gold edge; companion card has its own colour; cooldown cards dimmed with turns left. Never more than five cards, so the row always fits.
-6. **End turn** button. Full combat log one tap away, not on screen.
+6. **Pass** button (ends the turn with no action). Full combat log one tap away, not on screen.
 
 Tap a card to select, then tap an enemy to use it on (with one enemy, tap the card again). Using a card ends your turn. Long press shows full card text. Floating text and screen shake can be reduced in settings.
 

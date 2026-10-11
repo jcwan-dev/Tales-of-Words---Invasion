@@ -83,7 +83,8 @@ function attackOf(e: Extract<Effect, { type: "damage" }>, riders: readonly Statu
     ...(e.scaling === undefined ? {} : { scaling: e.scaling }),
     ...(riders.length === 0 ? {} : { statuses: riders }),
   };
-  const n = e.hits !== undefined && Number.isInteger(e.hits) && e.hits >= 1 ? e.hits : 1;
+  const n = e.hits ?? 1;
+  if (!Number.isInteger(n) || n < 1) throw new RangeError(`compileCard: hits must be an integer >= 1, got ${n}`);
   const hits: HitSpec[] = [];
   for (let i = 0; i < n; i++) hits.push(hit);
   return { hits };
@@ -145,6 +146,10 @@ export function compileCard(card: CardSpec): CardPlan {
       }
       case "heal":
       case "restoreShield":
+        // Heal and restore Shield scale only with the user (spec: Cards in combat), as the validator enforces.
+        for (const term of e.scaling ?? []) {
+          if (!("stat" in term)) throw new RangeError(`compileCard: ${e.type} in card ${card.id} may only scale with the user's stats`);
+        }
         steps.push({ kind: e.type, reach, amount: e.amount, scaling: e.scaling });
         break;
       case "consume":

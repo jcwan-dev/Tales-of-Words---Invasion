@@ -3,6 +3,8 @@ import {
   cardFromSkill,
   createUnit,
   endTurn,
+  GATE,
+  type GateState,
   passTurn,
   playCard,
   resolveHit,
@@ -22,6 +24,9 @@ import {
 import { skillDef, weaponDef } from "./base-pack.ts";
 import { eventsOf, typesOf } from "./helpers.ts";
 import { activeId, during, enemy, fight, pass, phys, player } from "./turn-helpers.ts";
+
+/** The pooled action gate. It lives on the CombatState implementation; the public CombatState type doesn't expose it. */
+const gateOf = (s: CombatState): GateState => (s as CombatState & { readonly gate: GateState }).gate;
 
 // Spec 1.7, "Skills":
 //   "A player holds at most 5." "One action per turn. On your turn you do exactly one thing: Strike, use one ready
@@ -399,6 +404,18 @@ describe("playCard: validation (no events, no state change)", () => {
     pass(state);
     startTurn(state);
     expectRejected(ctx, state, () => playCard(state, "jab"), "on_cooldown");
+  });
+
+  it("not_allowed: a restrict filter (cooldown 0 only) forbids a ready skill; Strike still plays", () => {
+    // "It must be ready and allowed by the action gate (a restrict filter can forbid it)."
+    const { ctx, state, e } = duel([STRIKE, JAB]);
+    startTurn(state);
+    gateOf(state).result = GATE.restrict;
+    gateOf(state).filter = { allows: (c) => c.cooldown === 0 };
+    const ev = during(ctx, () => expectRejected(ctx, state, () => playCard(state, "jab", "e"), "not_allowed"));
+    expect(ev).toEqual([]);
+    expect(playCard(state, "strike", "e")).toEqual({ ok: true });
+    expect(e.hp).toBe(496); // 500 - 4
   });
 
   describe("bad_target", () => {

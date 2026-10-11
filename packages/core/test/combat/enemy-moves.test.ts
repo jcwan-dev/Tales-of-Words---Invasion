@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   createUnit,
   endTurn,
+  GATE,
+  type GateState,
   resolveHit,
   enemyAct,
   passTurn,
@@ -16,6 +18,9 @@ import {
 } from "../../src/index.ts";
 import { eventsOf } from "./helpers.ts";
 import { activeId, during, enemy, fight, phys, player } from "./turn-helpers.ts";
+
+/** The pooled action gate. It lives on the CombatState implementation; the public CombatState type doesn't expose it. */
+const gateOf = (s: CombatState): GateState => (s as CombatState & { readonly gate: GateState }).gate;
 
 // Spec 1.7, "Enemy moves":
 //   "An enemy has a list of moves (data): each with a weight, a cooldown and the same effects as skills, plus a
@@ -224,6 +229,63 @@ describe("Only ready moves are picked", () => {
     expect(eventsOf(ev, "Passed")).toEqual([{ type: "Passed", unit: "e" }]);
     expect(eventsOf(ev, "CardPlayed")).toEqual([]);
     expect(eventsOf(ev, "TurnEnded")).toEqual([{ type: "TurnEnded", unit: "e" }]);
+    expect(activeId(state)).toBe("p");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// Spec 1.7: "If its chosen move becomes unusable (restricted), it picks again among the allowed ready moves; with
+// none, it passes." The restrict filter is set by hand after startTurn (as in unit/gate.test.ts).
+describe("A restricted intent: pick again among the allowed ready moves, or pass", () => {
+  const SLAM = card("slam", 2, dmg(7));
+  const cooldownZeroOnly = (state: CombatState): void => {
+    gateOf(state).result = GATE.restrict;
+    gateOf(state).filter = { allows: (c) => c.cooldown === 0 };
+  };
+
+  it("intent slam (cooldown 2) is forbidden: a new IntentChosen names bite, and bite is played", () => {
+    // Find a seed whose opening intent is slam (equal weights).
+    let found: ReturnType<typeof setup> | null = null;
+    for (let i = 0; i < 50 && found === null; i++) {
+      const s = setup([move(SLAM, 1), move(BITE, 1)], `restricted-${i}`);
+      if (s.e.intent === "slam") found = s;
+    }
+    if (found === null) throw new Error("no seed gave the slam intent");
+    const { ctx, state, p, e } = found;
+    startTurn(state);
+    passTurn(state);
+    startTurn(state); // the enemy's turn
+    cooldownZeroOnly(state);
+    let res: PlayResult | undefined;
+    const ev = during(ctx, () => (res = enemyAct(state)));
+    expect(res).toEqual({ ok: true });
+    // The re-pick comes first and names bite; then bite is played (and a fresh intent may follow after the turn).
+    expect(intents(ev)[0]).toBe("bite");
+    const firstIntent = ev.findIndex((x) => x.type === "IntentChosen");
+    const played = ev.findIndex((x) => x.type === "CardPlayed");
+    expect(firstIntent).toBeGreaterThanOrEqual(0);
+    expect(firstIntent).toBeLessThan(played);
+    expect(eventsOf(ev, "CardPlayed").map((x) => x.card)).toEqual(["bite"]);
+    expect(eventsOf(ev, "Passed")).toEqual([]);
+    expect(p.hp).toBe(195); // 200 - 5
+    expect(e.cooldowns.ready("slam")).toBe(true);
+  });
+
+  it("no move allowed (only slam, cooldown 2): the enemy passes; nothing is played and slam stays ready", () => {
+    const { ctx, state, p, e } = setup([move(SLAM, 1)], "restricted-none");
+    expect(e.intent).toBe("slam");
+    startTurn(state);
+    passTurn(state);
+    startTurn(state);
+    cooldownZeroOnly(state);
+    let res: PlayResult | undefined;
+    const ev = during(ctx, () => (res = enemyAct(state)));
+    expect(res).toEqual({ ok: true });
+    expect(eventsOf(ev, "Passed")).toEqual([{ type: "Passed", unit: "e" }]);
+    expect(eventsOf(ev, "CardPlayed")).toEqual([]);
+    expect(eventsOf(ev, "TurnEnded")).toEqual([{ type: "TurnEnded", unit: "e" }]);
+    expect(p.hp).toBe(200);
+    expect(e.cooldowns.ready("slam")).toBe(true);
     expect(activeId(state)).toBe("p");
   });
 });

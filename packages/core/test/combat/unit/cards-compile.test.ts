@@ -51,4 +51,20 @@ describe("compileCard (builder unit tests)", () => {
     const plan = compileCard(card(dmg("self"), st("enfeebled", "enemy")));
     expect(plan.steps.map((s) => [s.kind, s.reach])).toEqual([["attack", "self"], ["status", "chosen"]]);
   });
+
+  it("heal and restoreShield scaling that reads the target throws a RangeError (as the validator rejects it)", () => {
+    for (const type of ["heal", "restoreShield"] as const) {
+      expect(() => compileCard(card({ type, amount: 4, target: "self", scaling: [{ afflictions: true, per: 1 }] }))).toThrow(RangeError);
+      expect(() => compileCard(card({ type, amount: 4, target: "self", scaling: [{ stat: "wisdom", per: 1 }, { stacksOfTag: "dot", per: 1 }] }))).toThrow(RangeError);
+      expect(() => compileCard(card({ type, amount: 4, target: "self", scaling: [{ stat: "wisdom", per: 3 }] }))).not.toThrow();
+    }
+  });
+
+  it("invalid hits throw a RangeError instead of falling back to 1", () => {
+    for (const hits of [0, -1, 1.5, Number.NaN]) {
+      expect(() => compileCard(card({ type: "damage", damageType: "physical", amount: 2, target: "enemy", hits }))).toThrow(RangeError);
+    }
+    expect(() => compileCard(card({ type: "damage", damageType: "physical", amount: 2, target: "enemy" }))).not.toThrow();
+  });
 });
+
