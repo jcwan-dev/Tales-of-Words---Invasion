@@ -78,23 +78,41 @@ class Checker {
       }
     });
   }
+  /** Optional hit count: an integer >= 1. */
+  hits(o: Obj, field: string): void {
+    const v = o["hits"];
+    if (v !== undefined && (!isNum(v) || !Number.isInteger(v) || v < 1)) this.fail(field, "must be an integer >= 1");
+  }
+  /** Heal and restore Shield scale only with the user (spec: Cards in combat): no target terms. */
+  userOnlyScaling(v: unknown, field: string): void {
+    if (!Array.isArray(v)) return;
+    v.forEach((s, i) => {
+      if (isObj(s) && (s["afflictions"] !== undefined || s["stacksOfTag"] !== undefined)) {
+        this.fail(`${field}[${i}]`, "heal and restore Shield scale only with the user's stats, never the target's");
+      }
+    });
+  }
   effects(o: Obj): void {
     const list = o["effects"];
     if (!Array.isArray(list) || list.length === 0) return this.fail("effects", "must be a non-empty array");
     list.forEach((e, i) => {
       const f = `effects[${i}]`;
       if (!isObj(e)) return this.fail(f, "must be an object");
-      if (e["target"] !== "self" && e["target"] !== "enemy") this.fail(`${f}.target`, 'must be "self" or "enemy"');
+      if (e["target"] !== "self" && e["target"] !== "enemy" && e["target"] !== "allEnemies") {
+        this.fail(`${f}.target`, 'must be "self", "enemy" or "allEnemies"');
+      }
       switch (e["type"]) {
         case "damage":
           if (e["damageType"] !== "physical" && e["damageType"] !== "arcane") this.fail(`${f}.damageType`, 'must be "physical" or "arcane"');
           this.num(e, "amount", { min: 0 });
           this.scaling(e["scaling"], `${f}.scaling`);
+          this.hits(e, `${f}.hits`);
           break;
         case "heal":
         case "restoreShield":
           this.num(e, "amount", { min: 0 });
           this.scaling(e["scaling"], `${f}.scaling`);
+          this.userOnlyScaling(e["scaling"], `${f}.scaling`);
           break;
         case "status":
           if (!(STATUS_IDS as readonly unknown[]).includes(e["status"])) this.fail(`${f}.status`, "unknown status id");
@@ -115,7 +133,6 @@ class Checker {
 }
 
 function checkSkillFields(c: Checker, d: Obj): void {
-  c.num(d, "cost", { min: 0, integer: true });
   // Spec: only Strike has no cooldown, and Strike lives on the weapon, not here.
   c.num(d, "cooldown", { min: 1, integer: true });
   c.effects(d);
@@ -158,6 +175,7 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
         c.num(a, "damage", { min: 0 });
         if (a["damageType"] !== "physical" && a["damageType"] !== "arcane") c.fail("attack.damageType", 'must be "physical" or "arcane"');
         c.scaling(a["scaling"], "attack.scaling");
+        c.hits(a, "attack.hits");
       }
       break;
     }

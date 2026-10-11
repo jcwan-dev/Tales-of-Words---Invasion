@@ -2,7 +2,6 @@
   "kind": "skill",
   "id": "skill.dirty_trick",
   "name": "skill.dirty_trick.name",
-  "cost": 1,
   "cooldown": 1,
   "effects": [
     {

@@ -33,3 +33,17 @@ export function applyStatus(ctx: CombatContext, target: CombatUnit, status: Stat
   if (removed > 0) ctx.events.push({ type: "StatusResisted", unit: target.id, status, removed });
   addStacks(ctx, target, status, removed > 0 ? stacks - removed : stacks);
 }
+
+/**
+ * A status a unit puts on itself (a card's self effect): the chance is rolled as usual, but the status
+ * is the unit's own, so resistance doesn't apply (spec: Cards in combat).
+ */
+export function applyOwnStatus(ctx: CombatContext, unit: CombatUnit, status: StatusId, stacks: number, chance: number): void {
+  if (stacks <= 0) return;
+  const lands = chance >= 1 ? true : chance <= 0 ? false : ctx.rng.chance(chance);
+  if (!lands) {
+    ctx.events.push({ type: "StatusMissed", unit: unit.id, status });
+    return;
+  }
+  addStacks(ctx, unit, status, stacks);
+}

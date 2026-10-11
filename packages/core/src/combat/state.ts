@@ -27,6 +27,10 @@ export class CombatStateImpl implements CombatState {
   winner: Side | null = null;
   /** Index of `active` in `units`. */
   index = 0;
+  /** startTurn has run for the active unit's current turn. */
+  turnStarted = false;
+  /** The active unit may take its one action (its turn started and the gate didn't skip it). */
+  canAct = false;
   /** Pooled action-gate result, reset at every gate. */
   readonly gate: GateState = createGateState();
   /** Slow decay and decay floors for this fight, resolved once from the units' traits. */

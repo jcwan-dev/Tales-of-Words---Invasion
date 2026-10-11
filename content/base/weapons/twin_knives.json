@@ -8,6 +8,7 @@
   "attack": {
     "damage": 3,
     "damageType": "physical",
+    "hits": 2,
     "scaling": [
       {
         "stat": "agility",

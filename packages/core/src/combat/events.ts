@@ -48,6 +48,15 @@ export type CombatEvent =
   /** A convert trigger fired; its gain's StatusApplied follows. */
   | { type: "TriggerFired"; unit: string; on: TriggerEvent; gain: StatusId; stacks: number; depth: number }
   /** A trigger beyond the depth cap was ignored. */
-  | { type: "TriggerCapped"; unit: string; on: TriggerEvent; depth: number };
+  | { type: "TriggerCapped"; unit: string; on: TriggerEvent; depth: number }
+  // Cards and moves (M1.4)
+  /** A unit used a card (its turn's one action); `target` is the chosen enemy, or null when none was needed. */
+  | { type: "CardPlayed"; unit: string; card: string; target: string | null }
+  /** A unit passed: its turn's action was to do nothing. */
+  | { type: "Passed"; unit: string }
+  /** A unit with moves picked its next move (its intent). */
+  | { type: "IntentChosen"; unit: string; move: string }
+  /** Shield restored by an effect (amount actually restored, capped at max Shield; never 0). */
+  | { type: "ShieldRestored"; unit: string; amount: number };
 
 export type CombatEventType = CombatEvent["type"];

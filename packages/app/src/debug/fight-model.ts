@@ -315,6 +315,14 @@ export function formatEvent(e: CombatEvent): string {
       return `${nameOf(e.unit)}'s ${e.on} trigger: +${e.stacks} ${nameOf(e.gain)} (depth ${e.depth})`;
     case "TriggerCapped":
       return `${nameOf(e.unit)}'s ${e.on} trigger ignored (depth ${e.depth} over the cap)`;
+    case "CardPlayed":
+      return `${nameOf(e.unit)} uses ${e.card}${e.target === null ? "" : ` on ${nameOf(e.target)}`}`;
+    case "Passed":
+      return `${nameOf(e.unit)} passes`;
+    case "IntentChosen":
+      return `${nameOf(e.unit)} intends ${e.move}`;
+    case "ShieldRestored":
+      return `${nameOf(e.unit)} restores ${e.amount} Shield`;
     default:
       return unknownEvent(e);
   }

@@ -2,7 +2,6 @@
   "kind": "skill",
   "id": "skill.shore_up",
   "name": "skill.shore_up.name",
-  "cost": 1,
   "cooldown": 2,
   "effects": [
     {

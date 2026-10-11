@@ -939,3 +939,66 @@ describe("Slow decay: enemy DoTs lose their stack only on even rounds while a li
     expect(e.hp).toBe(39);
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// Task M1.4 (deferred from M1.3): "a consume that removes stacks also emits StatusRemoved when it takes the status
+// to 0", like every other way a status reaches 0 (turn-end ticks, DoT ticks, meters, charges).
+describe("Consume emits StatusRemoved when it takes the status to 0", () => {
+  const combustion = { status: "burning", multiplier: 3, damageType: "arcane" } as const;
+  const removedBy = (events: readonly CombatEvent[]) => eventsOf(events, "StatusRemoved");
+
+  it("uncapped Combustion on Burning 5: StatusRemoved once, for the target's Burning", () => {
+    const ctx = createCombatContext("consume-removed");
+    const t = enemy("e", { statuses: { burning: 5, bleeding: 2 } });
+    resolveConsume(ctx, player(), t, combustion);
+    expect(removedBy(ctx.events)).toEqual([{ type: "StatusRemoved", unit: "e", status: "burning" }]);
+    expect(t.statuses.stacks("bleeding")).toBe(2);
+  });
+
+  it("Consumed and StatusRemoved both come after the hit's damage", () => {
+    const ctx = createCombatContext("consume-removed");
+    resolveConsume(ctx, player(), enemy("e", { statuses: { burning: 5 } }), combustion);
+    const dealt = idx(ctx.events, (e) => e.type === "DamageDealt");
+    expect(idx(ctx.events, (e) => e.type === "Consumed")).toBeGreaterThan(dealt);
+    expect(idx(ctx.events, (e) => e.type === "StatusRemoved")).toBeGreaterThan(dealt);
+  });
+
+  it("uncapped, including stacks the hit itself added (Bleeding 4 + Bleed power 2 -> all 6 removed): StatusRemoved once", () => {
+    const ctx = createCombatContext("consume-removed");
+    const t = enemy("e", { statuses: { bleeding: 4 } });
+    resolveConsume(ctx, player({ bleedPower: 2 }), t, { status: "bleeding", multiplier: 2, damageType: "physical" });
+    expect(t.statuses.stacks("bleeding")).toBe(0);
+    expect(removedBy(ctx.events)).toEqual([{ type: "StatusRemoved", unit: "e", status: "bleeding" }]);
+  });
+
+  it("a cap equal to or above the stacks takes it to 0: StatusRemoved", () => {
+    for (const max of [5, 10]) {
+      const ctx = createCombatContext("consume-removed");
+      const t = enemy("e", { statuses: { burning: 5 } });
+      resolveConsume(ctx, player(), t, { ...combustion, max });
+      expect(removedBy(ctx.events)).toEqual([{ type: "StatusRemoved", unit: "e", status: "burning" }]);
+    }
+  });
+
+  it("a cap below the stacks leaves some: no StatusRemoved", () => {
+    const ctx = createCombatContext("consume-removed");
+    const t = enemy("e", { statuses: { burning: 5 } });
+    resolveConsume(ctx, player(), t, { ...combustion, max: 3 });
+    expect(t.statuses.stacks("burning")).toBe(2);
+    expect(removedBy(ctx.events)).toEqual([]);
+  });
+
+  it("a deflected consume keeps the stacks: no StatusRemoved", () => {
+    const ctx = createCombatContext("consume-removed");
+    const t = enemy("e", { statuses: { burning: 5, warded: 2 } });
+    resolveConsume(ctx, player(), t, combustion);
+    expect(t.statuses.stacks("burning")).toBe(5);
+    expect(removedBy(ctx.events)).toEqual([]);
+  });
+
+  it("a consume of a status the target doesn't have (0 stacks) removes nothing: no StatusRemoved", () => {
+    const ctx = createCombatContext("consume-removed");
+    resolveConsume(ctx, player(), enemy(), combustion);
+    expect(removedBy(ctx.events)).toEqual([]);
+  });
+});

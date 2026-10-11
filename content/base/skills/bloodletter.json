@@ -2,7 +2,6 @@
   "kind": "skill",
   "id": "skill.bloodletter",
   "name": "skill.bloodletter.name",
-  "cost": 2,
   "cooldown": 2,
   "effects": [
     {

@@ -43,6 +43,16 @@ export function heal(ctx: CombatContext, unit: CombatUnit, amount: number): void
   ctx.events.push({ type: "Healed", unit: unit.id, amount: healed });
 }
 
+/** Restores Shield up to max Shield. A fallen unit gets none. Emits ShieldRestored for the amount restored. */
+export function restoreShield(ctx: CombatContext, unit: CombatUnit, amount: number): void {
+  if (unit.fallen || amount <= 0) return;
+  const missing = unit.maxShield - unit.shield;
+  const restored = amount < missing ? amount : missing;
+  if (restored <= 0) return;
+  unit.shield += restored;
+  ctx.events.push({ type: "ShieldRestored", unit: unit.id, amount: restored });
+}
+
 /** Adds stacks and emits StatusApplied. */
 export function addStacks(ctx: CombatContext, unit: CombatUnit, status: StatusId, stacks: number): void {
   if (stacks <= 0) return;

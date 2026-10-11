@@ -6,13 +6,16 @@ export * from "./content/types.ts";
 export * from "./content/validate.ts";
 
 // Combat core (M1)
-export * from "./combat/unit.ts";
+export { createUnit, MAX_PLAYER_CARDS, type CombatUnit, type Side, type UnitInit } from "./combat/unit.ts";
 export * from "./combat/status-set.ts";
 export * from "./combat/events.ts";
 export * from "./combat/context.ts";
 export * from "./combat/hit-state.ts";
 export * from "./combat/hit.ts";
 export * from "./combat/attack.ts";
+export * from "./combat/cards.ts";
+export * from "./combat/moves.ts";
+export * from "./combat/play.ts";
 export * from "./combat/queries.ts";
 export * from "./combat/power-ids.ts";
 export * from "./combat/powers.ts";
