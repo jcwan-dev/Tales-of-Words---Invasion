@@ -39,14 +39,22 @@ interface Candidate {
   readonly rarity: Rarity;
 }
 
-/** The unheld skills and Words and the unworn items of the pack, in pack order. */
+const byId = (a: { readonly id: string }, b: { readonly id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * The unheld skills and Words and the unworn items of the pack, in id order (so the same seed gives the same screen
+ * whatever order the files load in). A skill or Word that is another's `upgrade` is never a reward.
+ */
 function candidates(pack: ContentPack, input: RewardDrawInput): { skill: Candidate[]; item: Candidate[] } {
+  const upgrades = new Set<string>();
+  const defs = [...pack.byId.values()].sort(byId);
+  for (const def of defs) if ((def.kind === "skill" || def.kind === "word") && def.upgrade !== undefined) upgrades.add(def.upgrade);
   const skill: Candidate[] = [];
   const item: Candidate[] = [];
   const worn = ITEM_SLOTS.map((slot) => input.picks[slot]);
-  for (const def of pack.byId.values()) {
+  for (const def of defs) {
     if (def.kind === "skill" || def.kind === "word") {
-      if (!input.cards.includes(def.id)) skill.push({ option: { kind: "skill", id: def.id }, rarity: def.rarity ?? "common" });
+      if (!input.cards.includes(def.id) && !upgrades.has(def.id)) skill.push({ option: { kind: "skill", id: def.id }, rarity: def.rarity ?? "common" });
     } else if (def.kind === "weapon" || def.kind === "armor" || def.kind === "accessory") {
       if (!worn.includes(def.id)) item.push({ option: { kind: "item", id: def.id, slot: def.kind }, rarity: def.rarity ?? "common" });
     }

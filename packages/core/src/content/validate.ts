@@ -13,6 +13,7 @@ import {
   STATUS_IDS,
   STATUS_TAGS,
   TRIGGER_EVENTS,
+  type ActDef,
   type ContentDef,
   type ContentKind,
   type ContentPack,
@@ -137,6 +138,20 @@ function checkAct(c: Checker, d: Obj): void {
   } else checkRewards(c, rewards, groups !== undefined);
 }
 
+/**
+ * An act that can fight without listing groups (a fixed node whose `ref` is a group, found by kind) needs rewards for
+ * every tier too (spec: Rewards, items and level-ups, Details). Acts with groups are checked in checkAct.
+ */
+function checkFightingActRewards(act: ActDef, byId: ReadonlyMap<string, ContentDef>, where: string, issues: ValidationIssue[]): void {
+  if (act.groups !== undefined) return;
+  if (!act.fixed.some((f) => f.ref !== undefined && byId.get(f.ref)?.kind === "group")) return;
+  for (const tier of GROUP_TIERS) {
+    if (act.rewards?.[tier] === undefined) {
+      issues.push({ path: `${where}#rewards.${tier}`, message: "missing: an act with a fixed fight (a ref naming a group) needs rewards for every tier" });
+    }
+  }
+}
+
 /** Weights by key: an object of known keys → integers >= 0, at least one above 0. */
 function checkWeights(c: Checker, v: unknown, field: string, keys: readonly string[]): void {
   if (!isObj(v)) return c.fail(field, `must be an object of ${keys.join(" / ")} → weight`);
@@ -165,6 +180,7 @@ function checkRewards(c: Checker, rewards: unknown, allTiers: boolean): void {
     checkWeights(c, t["kinds"], `${f}.kinds`, REWARD_KINDS);
     checkWeights(c, t["rarity"], `${f}.rarity`, RARITIES);
     const crowns = t["crowns"];
+    if (isObj(crowns)) for (const key of Object.keys(crowns)) if (key !== "min" && key !== "max") c.fail(`${f}.crowns.${key}`, "unknown key; expected min or max");
     if (!isObj(crowns) || !isInt(crowns["min"]) || !isInt(crowns["max"])) c.fail(`${f}.crowns`, "must be { min, max } with integer values");
     else if (crowns["min"] < 0) c.fail(`${f}.crowns.min`, "must be >= 0");
     else if (crowns["max"] < crowns["min"]) c.fail(`${f}.crowns.max`, "must be >= min");
@@ -552,6 +568,7 @@ export function validatePack(packId: string, files: readonly ContentFile[]): Val
       (def.routes ?? []).forEach((r, i) => {
         if (byId.get(r.to)?.kind !== "act") issues.push({ path: `${where}#routes[${i}].to`, message: `"${r.to}" is not an act in this pack` });
       });
+      checkFightingActRewards(def, byId, where, issues);
       (def.groups ?? []).forEach((g, i) => {
         if (byId.get(g)?.kind !== "group") issues.push({ path: `${where}#groups[${i}]`, message: `"${g}" is not a group in this pack` });
       });

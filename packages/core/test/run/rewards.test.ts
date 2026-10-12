@@ -9,6 +9,7 @@ import {
   finishFight,
   forgetCard,
   leaveCard,
+  loadoutTotals,
   playerUnitFromRun,
   rerollRewards,
   revive,
@@ -73,6 +74,8 @@ import {
   U4,
   U5,
   U6,
+  skillFile,
+  wordFile,
   type TableSpec,
 } from "./rewards-pack.ts";
 
@@ -1737,8 +1740,69 @@ describe("rewards: state fields and the node through the phases (clarification 1
         if (run.phase === "inNode") node = snapshot(run).node;
         expectPhaseState(run, node);
         expect(snapshot(run)).toEqual(run);
+        // Max HP always equals the loadout formula on the current picks and base stats (item swaps, level-ups).
+        expect(run.player.maxHp).toBe(loadoutTotals(ctx.pack, run.picks, run.player.baseStats).maxHp);
       }
       expect(run.phase).toBe("won");
+    }
+  });
+});
+
+// =============================================================================================
+// Spec 1.11 review fixes ("Details"): id order, upgrades
+
+describe("rewards: candidates in id order (spec 1.11, Details)", () => {
+  it("the same files in another load order give the same screens for the same seed", () => {
+    const pool = [...FULL_POOL];
+    const reversed = rewardsCtx({ pool: [...pool].reverse() });
+    const shuffled = rewardsCtx({ pool: [...pool.filter((_, i) => i % 2 === 1), ...pool.filter((_, i) => i % 2 === 0)] });
+    const plain = rewardsCtx({ pool });
+    for (const s of seeds(30, "order")) {
+      const picks = { character: "char.sage", path: "path.deep_study" };
+      const a = firstScreen(plain, s, picks, "elite");
+      expect(firstScreen(reversed, s, picks, "elite")).toEqual(a);
+      expect(firstScreen(shuffled, s, picks, "elite")).toEqual(a);
+    }
+  });
+
+  it("rerolled screens and later screens too", () => {
+    const plain = rewardsCtx();
+    const reversed = rewardsCtx({ pool: [...FULL_POOL].reverse() });
+    for (const s of seeds(10, "order-r")) {
+      const a = rewardsRun(plain, { seed: s }).run;
+      const b = rewardsRun(reversed, { seed: s }).run;
+      ok(rerollRewards(plain, a, REROLL));
+      ok(rerollRewards(reversed, b, REROLL));
+      expect(screen(b)).toEqual(screen(a));
+      ok(takeReward(plain, a, 0));
+      ok(takeReward(reversed, b, 0));
+      expect(snapshot(b)).toEqual(snapshot(a));
+    }
+  });
+});
+
+describe("rewards: upgrades are never offered (spec 1.11, Details)", () => {
+  const BASE = skillFile("skill.base", "common", { upgrade: "skill.base_plus" });
+  const PLUS = skillFile("skill.base_plus", "common");
+  const WORD = wordFile("word.w", "common", { upgrade: "word.w_plus" });
+  const WORD_PLUS = wordFile("word.w_plus", "common");
+
+  it("a skill or Word named as another's upgrade is never on a screen; its base is", () => {
+    const ctx = rewardsCtx({ table: SKILL_ONLY, pool: [BASE, PLUS, WORD, WORD_PLUS, C1] });
+    const seen = new Set<string>();
+    for (const options of screensOver(ctx, 20, { character: "char.sage", path: "path.deep_study" })) {
+      for (const id of ids(options)) seen.add(id);
+      expect(options).toHaveLength(3);
+    }
+    expect([...seen].sort()).toEqual(["skill.base", "skill.c1", "word.w"]);
+  });
+
+  it("whatever the rarity weights: an upgrade alone in its rarity leaves that rarity empty", () => {
+    const RARE_PLUS = skillFile("skill.rare_plus", "rare");
+    const ctx = rewardsCtx({ table: table({ kinds: { skill: 1 }, rarity: { rare: 1 } }), pool: [skillFile("skill.x", "common", { upgrade: "skill.rare_plus" }), RARE_PLUS] });
+    for (const s of seeds(5)) {
+      const run = startRewardsRun(ctx, s);
+      expect(kinds(toRewards(ctx, run, "normal"))).toEqual(["NodeCompleted", "OptionsOffered"]);
     }
   });
 });

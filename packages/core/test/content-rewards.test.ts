@@ -165,6 +165,11 @@ describe("act rewards: the table", () => {
     }
   });
 
+  it("crowns: unknown keys are rejected", () => {
+    expectIssue(check(withNormal({ ...TABLE, crowns: { min: 1, max: 5, step: 1 } })), "a.json", "rewards");
+    expectIssue(check(withNormal({ ...TABLE, crowns: { min: 1, max: 5, Max: 6 } })), "a.json", "rewards");
+  });
+
   it("every tier's table is checked, not just one", () => {
     expectIssue(check(act({ rewards: { ...ALL_TIERS, boss: { ...TABLE, kinds: {} } } })), "a.json", "rewards");
     expectIssue(check(act({ rewards: { ...ALL_TIERS, hard: { ...TABLE, crowns: { min: 3, max: 1 } } } })), "a.json", "rewards");
@@ -172,9 +177,27 @@ describe("act rewards: the table", () => {
 });
 
 describe("act rewards: which tiers are required", () => {
-  it("an act without groups may leave rewards out, or give some tiers only", () => {
-    expectValid(check(act({ groups: undefined, tiers: undefined, rewards: undefined })));
-    expectValid(check(act({ groups: undefined, tiers: undefined, rewards: { elite: TABLE } })));
+  it("an act that can't fight (no groups, no fixed node naming a group) may leave rewards out, or give some tiers only", () => {
+    // Spec 1.11 review fix: a fixed node whose ref is a group makes the act one that can fight (see below).
+    const noFight = { groups: undefined, tiers: undefined, fixed: [{ at: "last", type: "event", ref: "event.finale" }] };
+    expectValid(check(act({ ...noFight, rewards: undefined })));
+    expectValid(check(act({ ...noFight, rewards: { elite: TABLE } })));
+    // A ref that names nothing in the pack, or a fixed node with no ref, doesn't make it fight either.
+    expectValid(check(act({ ...noFight, fixed: [{ at: "last", type: "combat", ref: "group.missing" }], rewards: undefined })));
+    expectValid(check(act({ ...noFight, fixed: [{ at: "last", type: "merchant" }], rewards: undefined })));
+  });
+
+  it("an act without groups whose fixed node's ref is a group needs rewards for all four tiers (spec 1.11, Details)", () => {
+    const fights = { groups: undefined, tiers: undefined, fixed: [{ at: "last", type: "combat", ref: "group.b" }] };
+    expectIssue(check(act({ ...fights, rewards: undefined })), "a.json", "rewards");
+    expectIssue(check(act({ ...fights, rewards: { boss: TABLE } })), "a.json", "rewards");
+    for (const missing of ["normal", "hard", "elite", "boss"]) {
+      const rewards = Object.fromEntries(Object.entries(ALL_TIERS).filter(([tier]) => tier !== missing));
+      expectIssue(check(act({ ...fights, rewards })), "a.json", "rewards");
+    }
+    expectValid(check(act({ ...fights, rewards: ALL_TIERS })));
+    // Decided by the ref's kind, whatever the node type or the group's tier.
+    expectIssue(check(act({ ...fights, fixed: [{ at: 1, type: "event", ref: "group.g" }, { at: "last", type: "merchant" }], rewards: undefined })), "a.json", "rewards");
   });
 
   it("an act with groups needs rewards", () => {
