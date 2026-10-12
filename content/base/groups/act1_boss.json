@@ -1,0 +1,10 @@
+{
+  "kind": "group",
+  "id": "group.act1_boss",
+  "name": "group.act1_boss.name",
+  "tier": "boss",
+  "enemies": [
+    "enemy.hollow_abbot"
+  ],
+  "text": "group.act1_boss.text"
+}

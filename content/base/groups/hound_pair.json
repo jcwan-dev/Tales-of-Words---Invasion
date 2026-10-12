@@ -1,0 +1,11 @@
+{
+  "kind": "group",
+  "id": "group.hound_pair",
+  "name": "group.hound_pair.name",
+  "tier": "normal",
+  "enemies": [
+    "enemy.bog_hound",
+    "enemy.bog_hound"
+  ],
+  "text": "group.hound_pair.text"
+}

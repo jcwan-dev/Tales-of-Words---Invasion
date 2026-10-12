@@ -1,0 +1,79 @@
+{
+  "kind": "enemy",
+  "id": "enemy.marsh_warden",
+  "name": "enemy.marsh_warden.name",
+  "stats": {
+    "might": 4,
+    "vitality": 4,
+    "wisdom": 3
+  },
+  "hp": 48,
+  "shield": 8,
+  "moves": [
+    {
+      "id": "halberd",
+      "weight": 3,
+      "cooldown": 0,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "physical",
+          "amount": 5,
+          "target": "enemy",
+          "scaling": [
+            {
+              "stat": "might",
+              "per": 1
+            }
+          ]
+        }
+      ],
+      "intent": "enemy.marsh_warden.halberd.intent"
+    },
+    {
+      "id": "sweep",
+      "weight": 2,
+      "cooldown": 2,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "physical",
+          "amount": 3,
+          "target": "enemy",
+          "scaling": [
+            {
+              "stat": "might",
+              "per": 1
+            }
+          ]
+        },
+        {
+          "type": "status",
+          "status": "enfeebled",
+          "stacks": 2,
+          "target": "enemy"
+        }
+      ],
+      "intent": "enemy.marsh_warden.sweep.intent"
+    },
+    {
+      "id": "brace",
+      "weight": 1,
+      "cooldown": 3,
+      "effects": [
+        {
+          "type": "restoreShield",
+          "amount": 8,
+          "target": "self"
+        },
+        {
+          "type": "status",
+          "status": "thorns",
+          "stacks": 2,
+          "target": "self"
+        }
+      ],
+      "intent": "enemy.marsh_warden.brace.intent"
+    }
+  ]
+}

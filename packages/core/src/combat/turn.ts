@@ -154,3 +154,24 @@ function advance(s: CombatStateImpl): void {
   }
   s.active = null;
 }
+
+/**
+ * Reopens a fight that ended with the player side's fall, after a revive (spec: Combat node; ADR 0011): the fight
+ * goes on with `unit` (a living unit of the fight) acting next, at the start of a new round. Units are left as the
+ * caller set them. If a side has no living unit, the fight ends again at once (CombatEnded). Throws RangeError if
+ * the fight isn't over or `unit` isn't a living unit of it. Not part of the turn pipeline: called between turns.
+ */
+export function reopenFight(state: CombatState, unit: CombatUnit): void {
+  const s = impl(state);
+  if (s === null || !s.over) throw new RangeError("reopenFight: the fight is not over");
+  const index = s.units.indexOf(unit);
+  if (index < 0 || unit.fallen) throw new RangeError(`reopenFight: "${unit.id}" is not a living unit of this fight`);
+  s.over = false;
+  s.winner = null;
+  s.round += 1;
+  s.index = index;
+  s.active = unit;
+  s.turnStarted = false;
+  s.canAct = false;
+  checkFightEnd(s.ctx);
+}

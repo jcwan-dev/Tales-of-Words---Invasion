@@ -131,7 +131,8 @@ function finalStatsOf(base: StatBlock, modifiers: readonly (StatBonus | undefine
   return Object.freeze(block);
 }
 
-function powersOf(sources: readonly (PowerBonus | undefined)[]): Record<PowerId, number> {
+/** Powers added up over the sources (missing ones 0). Shared with enemies (run/fight.ts). */
+export function powersOf(sources: readonly (PowerBonus | undefined)[]): Record<PowerId, number> {
   const total = {} as Record<PowerId, number>;
   for (const p of POWER_IDS) {
     let n = 0;
@@ -143,9 +144,9 @@ function powersOf(sources: readonly (PowerBonus | undefined)[]): Record<PowerId,
 
 /**
  * Converts and slow decay concatenate in slot order; decay floors merge by max. Entries are copied, so the
- * unit never shares objects with the content pack.
+ * unit never shares objects with the content pack. Shared with enemies (run/fight.ts).
  */
-function traitsOf(sources: readonly (UnitTraits | undefined)[]): UnitTraits {
+export function traitsOf(sources: readonly (UnitTraits | undefined)[]): UnitTraits {
   const converts: ConvertTrigger[] = [];
   const slowDecay: SlowDecay[] = [];
   const decayFloors: Partial<Record<StatusId, number>> = {};
@@ -238,7 +239,7 @@ function take(from: SkillLike[], also: SkillLike[], offer: string[], rng: Rng): 
 export function assemblePlayer(pack: ContentPack, picks: LoadoutPicks, techniqueId: string | null): AssembledPlayer {
   const r = resolve(pack, picks);
   const baseStats = baseStatsOf(r.character);
-  const stats = finalStatsOf(baseStats, [r.weapon.stats, r.armor.stats, r.accessory.stats, r.path.stats]);
+  const body = bodyOf(r, baseStats);
 
   const cards: CardSpec[] = [weaponStrikeCard(r.weapon)];
   const grant = granted(pack, r.accessory);
@@ -251,27 +252,73 @@ export function assemblePlayer(pack: ContentPack, picks: LoadoutPicks, technique
     cards.push(cardFromSkill(technique));
   }
 
-  // Only items give HP and Shield (paths can't).
-  const itemHp = (r.weapon.hp ?? 0) + (r.armor.hp ?? 0) + (r.accessory.hp ?? 0);
-  const maxHp = maxHpFromVitality(stats.vitality) + itemHp;
-  const maxShield = (r.weapon.shield ?? 0) + (r.armor.shield ?? 0) + (r.accessory.shield ?? 0);
-  const powers = powersOf([r.weapon.powers, r.armor.powers, r.accessory.powers, r.path.powers]);
+  const maxHp = maxHpFromVitality(body.stats.vitality) + body.itemHp;
+  const unit = playerInit(body, maxHp, maxHp, cards);
+  return { unit, baseStats, eventTags: [...r.character.eventTags], rules: [...(r.path.rules ?? [])] };
+}
 
-  const unit: UnitInit = {
+/** What the loadout gives on top of base stats: final stats, item HP and Shield, powers and traits. */
+interface LoadoutBody {
+  readonly stats: StatBlock;
+  /** HP from items (paths can't give HP). */
+  readonly itemHp: number;
+  readonly maxShield: number;
+  readonly powers: Readonly<Record<PowerId, number>>;
+  readonly traits: UnitTraits;
+}
+
+/** The slot modifiers on `baseStats`, in slot order (spec: Loadout assembly). Only items give HP and Shield. */
+function bodyOf(r: Resolved, baseStats: StatBlock): LoadoutBody {
+  return {
+    stats: finalStatsOf(baseStats, [r.weapon.stats, r.armor.stats, r.accessory.stats, r.path.stats]),
+    itemHp: (r.weapon.hp ?? 0) + (r.armor.hp ?? 0) + (r.accessory.hp ?? 0),
+    maxShield: (r.weapon.shield ?? 0) + (r.armor.shield ?? 0) + (r.accessory.shield ?? 0),
+    powers: powersOf([r.weapon.powers, r.armor.powers, r.accessory.powers, r.path.powers]),
+    traits: traitsOf([r.weapon.traits, r.armor.traits, r.accessory.traits, r.path.traits]),
+  };
+}
+
+/** The player's UnitInit: id "player", Shield full, no statuses. */
+function playerInit(body: LoadoutBody, maxHp: number, hp: number, cards: readonly CardSpec[]): UnitInit {
+  return {
     id: "player",
     side: "player",
-    stats,
+    stats: body.stats,
     maxHp,
-    hp: maxHp,
-    maxShield,
-    shield: maxShield,
-    bleedPower: powers.bleedPower,
-    burnPower: powers.burnPower,
-    poisonPower: powers.poisonPower,
-    stunPower: powers.stunPower,
-    paralysisPower: powers.paralysisPower,
-    traits: traitsOf([r.weapon.traits, r.armor.traits, r.accessory.traits, r.path.traits]),
+    hp,
+    maxShield: body.maxShield,
+    shield: body.maxShield,
+    bleedPower: body.powers.bleedPower,
+    burnPower: body.powers.burnPower,
+    poisonPower: body.powers.poisonPower,
+    stunPower: body.powers.stunPower,
+    paralysisPower: body.powers.paralysisPower,
+    traits: body.traits,
     cards,
   };
-  return { unit, baseStats, eventTags: [...r.character.eventTags], rules: [...(r.path.rules ?? [])] };
+}
+
+/**
+ * The player unit for a fight, from the run's player data (spec: Combat node, "The fight"): the loadout's item and
+ * path modifiers on `baseStats` (floor 0), max HP and current HP as given, Shield full, powers and traits from the
+ * loadout, and `cardIds` in order (a weapon id is that weapon's Strike, a skill or Word id its card). No statuses.
+ * Throws RangeError for bad picks or a card id that isn't a weapon, skill or Word of the pack.
+ */
+export function loadoutUnit(
+  pack: ContentPack,
+  picks: LoadoutPicks,
+  baseStats: StatBlock,
+  maxHp: number,
+  hp: number,
+  cardIds: readonly string[],
+): UnitInit {
+  const body = bodyOf(resolve(pack, picks), baseStats);
+  const cards: CardSpec[] = [];
+  for (const id of cardIds) {
+    const def = pack.byId.get(id);
+    if (def?.kind === "weapon") cards.push(weaponStrikeCard(def));
+    else if (isSkillLike(def)) cards.push(cardFromSkill(def));
+    else throw new RangeError(`loadout: card "${id}" is not a weapon, skill or Word in pack "${pack.id}"`);
+  }
+  return playerInit(body, maxHp, hp, cards);
 }

@@ -1,0 +1,11 @@
+{
+  "kind": "group",
+  "id": "group.warden_and_hound",
+  "name": "group.warden_and_hound.name",
+  "tier": "elite",
+  "enemies": [
+    "enemy.marsh_warden",
+    "enemy.bog_hound"
+  ],
+  "text": "group.warden_and_hound.text"
+}

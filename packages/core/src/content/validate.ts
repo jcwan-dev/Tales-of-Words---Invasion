@@ -5,7 +5,16 @@
  */
 import { POWER_IDS } from "../combat/power-ids.ts";
 import { isStatId, STAT_IDS } from "../model/stats.ts";
-import { STATUS_IDS, STATUS_TAGS, TRIGGER_EVENTS, type ContentDef, type ContentKind, type ContentPack } from "./types.ts";
+import {
+  DRAWN_TIERS,
+  GROUP_TIERS,
+  STATUS_IDS,
+  STATUS_TAGS,
+  TRIGGER_EVENTS,
+  type ContentDef,
+  type ContentKind,
+  type ContentPack,
+} from "./types.ts";
 
 export interface ContentFile {
   readonly path: string;
@@ -37,6 +46,8 @@ const KIND_PREFIX: Record<ContentKind, string> = {
   skill: "skill",
   word: "word",
   act: "act",
+  enemy: "enemy",
+  group: "group",
 };
 
 const isInt = (v: unknown): v is number => isNum(v) && Number.isInteger(v);
@@ -105,14 +116,109 @@ function checkAct(c: Checker, d: Obj): void {
   }
 
   if (d["first"] !== undefined && typeof d["first"] !== "boolean") c.fail("first", "must be a boolean");
+
+  // Combat node data (spec: Combat node): groups and tiers together or neither. Group ids are checked against the
+  // pack in validatePack.
+  const groups = d["groups"];
+  const tiers = d["tiers"];
+  if ((groups === undefined) !== (tiers === undefined)) c.fail(groups === undefined ? "tiers" : "groups", "groups and tiers go together: give both or neither");
+  if (groups !== undefined) {
+    if (!Array.isArray(groups) || !groups.every(isStr)) c.fail("groups", "must be an array of group ids");
+    else if (new Set(groups).size !== groups.length) c.fail("groups", "must not list a group twice");
+  }
+  if (tiers !== undefined) checkTiers(c, tiers);
+}
+
+/** Tier bands: non-empty, the first from step 1, `from` strictly increasing; weights for drawn tiers only. */
+function checkTiers(c: Checker, tiers: unknown): void {
+  if (!Array.isArray(tiers) || tiers.length === 0) return c.fail("tiers", "must be a non-empty array of { from, weights } bands");
+  let previous = 0;
+  tiers.forEach((band, i) => {
+    const f = `tiers[${i}]`;
+    if (!isObj(band)) return c.fail(f, "must be { from, weights }");
+    const from = band["from"];
+    if (!isInt(from)) c.fail(`${f}.from`, "must be an integer");
+    else if (i === 0 && from !== 1) c.fail(`${f}.from`, "the first band must start at step 1");
+    else if (i > 0 && from <= previous) c.fail(`${f}.from`, "must be above the previous band's from");
+    if (isInt(from)) previous = from;
+    const weights = band["weights"];
+    if (!isObj(weights)) return c.fail(`${f}.weights`, "must be an object of tier → weight");
+    let positive = false;
+    for (const [tier, w] of Object.entries(weights)) {
+      if (!(DRAWN_TIERS as readonly string[]).includes(tier)) c.fail(`${f}.weights.${tier}`, `unknown or undrawable tier; expected one of ${DRAWN_TIERS.join(", ")}`);
+      if (!isInt(w) || w < 0) c.fail(`${f}.weights.${tier}`, "must be an integer >= 0");
+      else if (w > 0) positive = true;
+    }
+    if (!positive) c.fail(`${f}.weights`, "at least one weight must be above 0");
+  });
+}
+
+const MOVE_ID = /^[a-z][a-z0-9_]*$/;
+
+/** An enemy (spec: Combat node; Enemy moves). */
+function checkEnemy(c: Checker, d: Obj): void {
+  const stats = d["stats"];
+  if (stats !== undefined) {
+    if (!isObj(stats)) c.fail("stats", "must be an object of stat values");
+    else
+      for (const [stat, v] of Object.entries(stats)) {
+        if (!isStatId(stat)) c.fail(`stats.${stat}`, `unknown stat; expected one of ${STAT_IDS.join(", ")}`);
+        if (!isInt(v) || v < 0) c.fail(`stats.${stat}`, "must be an integer >= 0");
+      }
+  }
+  c.num(d, "hp", { min: 1, integer: true });
+  c.num(d, "shield", { min: 0, optional: true, integer: true });
+  c.powers(d);
+  c.traits(d);
+  const statuses = d["statuses"];
+  if (statuses !== undefined) {
+    if (!isObj(statuses)) c.fail("statuses", "must be an object of status → starting stacks");
+    else
+      for (const [id, n] of Object.entries(statuses)) {
+        if (!(STATUS_IDS as readonly string[]).includes(id)) c.fail(`statuses.${id}`, "unknown status id");
+        if (!isInt(n) || n < 1) c.fail(`statuses.${id}`, "must be an integer >= 1");
+      }
+  }
+  const moves = d["moves"];
+  if (!Array.isArray(moves) || moves.length === 0) return c.fail("moves", "must be a non-empty array of moves");
+  const seen = new Set<string>();
+  moves.forEach((m, i) => {
+    const f = `moves[${i}]`;
+    if (!isObj(m)) return c.fail(f, "must be { id, weight, cooldown, effects, intent }");
+    const id = m["id"];
+    if (!isStr(id) || !MOVE_ID.test(id)) c.fail(`${f}.id`, "must be a lowercase id: [a-z][a-z0-9_]*");
+    else if (seen.has(id)) c.fail(`${f}.id`, `duplicate move id "${id}" in this enemy`);
+    else seen.add(id);
+    const move = c.nested(`${f}.`);
+    move.num(m, "weight", { min: 1, integer: true });
+    move.num(m, "cooldown", { min: 0, integer: true });
+    move.effects(m);
+    move.str(m, "intent");
+  });
+}
+
+/** An enemy group (spec: Combat node). Enemy ids are checked against the pack in validatePack. */
+function checkGroup(c: Checker, d: Obj): void {
+  if (!(GROUP_TIERS as readonly unknown[]).includes(d["tier"])) c.fail("tier", `must be one of ${GROUP_TIERS.join(", ")}`);
+  const enemies = d["enemies"];
+  if (!Array.isArray(enemies) || enemies.length < 1 || enemies.length > 3 || !enemies.every(isStr)) c.fail("enemies", "must list 1 to 3 enemy ids");
+  c.str(d, "text");
 }
 
 class Checker {
-  readonly issues: ValidationIssue[] = [];
-  constructor(private readonly file: string) {}
+  constructor(
+    private readonly file: string,
+    /** Prepended to every field, for checks inside a list entry (e.g. "moves[0]."). */
+    private readonly prefix = "",
+    readonly issues: ValidationIssue[] = [],
+  ) {}
 
   fail(field: string, message: string): void {
-    this.issues.push({ path: `${this.file}#${field}`, message });
+    this.issues.push({ path: `${this.file}#${this.prefix}${field}`, message });
+  }
+  /** A checker for fields under `prefix`, reporting into the same issue list. */
+  nested(prefix: string): Checker {
+    return new Checker(this.file, `${this.prefix}${prefix}`, this.issues);
   }
   str(o: Obj, key: string): void {
     if (!isStr(o[key])) this.fail(key, "must be a non-empty string");
@@ -350,6 +456,12 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
     case "act":
       checkAct(c, d);
       break;
+    case "enemy":
+      checkEnemy(c, d);
+      break;
+    case "group":
+      checkGroup(c, d);
+      break;
   }
   return c.issues.length === 0 ? { def: d as unknown as ContentDef, issues: [] } : { issues: c.issues };
 }
@@ -385,6 +497,14 @@ export function validatePack(packId: string, files: readonly ContentFile[]): Val
     if (def.kind === "act") {
       (def.routes ?? []).forEach((r, i) => {
         if (byId.get(r.to)?.kind !== "act") issues.push({ path: `${where}#routes[${i}].to`, message: `"${r.to}" is not an act in this pack` });
+      });
+      (def.groups ?? []).forEach((g, i) => {
+        if (byId.get(g)?.kind !== "group") issues.push({ path: `${where}#groups[${i}]`, message: `"${g}" is not a group in this pack` });
+      });
+    }
+    if (def.kind === "group") {
+      def.enemies.forEach((e, i) => {
+        if (byId.get(e)?.kind !== "enemy") issues.push({ path: `${where}#enemies[${i}]`, message: `"${e}" is not an enemy in this pack` });
       });
     }
   }

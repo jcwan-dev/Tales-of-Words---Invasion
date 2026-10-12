@@ -161,6 +161,59 @@ export interface RouteDef {
   readonly notFlags?: readonly string[];
 }
 
+/** One move of an enemy (spec: Enemy moves; Combat node). In combat its card id is `<enemy id>.<move id>`. */
+export interface EnemyMoveDef {
+  /** Lowercase `[a-z][a-z0-9_]*`, unique within the enemy. */
+  readonly id: string;
+  /** Pick weight among the ready moves: an integer >= 1. */
+  readonly weight: number;
+  /** Turns of waiting after use: an integer >= 0. */
+  readonly cooldown: number;
+  readonly effects: readonly Effect[];
+  /** Localisation key of the written intent line. */
+  readonly intent: string;
+}
+
+/** An enemy (spec: Combat node). Enemies don't scale with steps: their numbers come from here. */
+export interface EnemyDef extends Base {
+  readonly kind: "enemy";
+  /** Stat values (integers >= 0); missing stats are 2. */
+  readonly stats?: StatBonus;
+  /** Max HP: an integer >= 1. */
+  readonly hp: number;
+  /** Max Shield: an integer >= 0 (default 0). */
+  readonly shield?: number;
+  readonly powers?: PowerBonus;
+  readonly traits?: UnitTraits;
+  /** Starting stacks per status (integers >= 1). */
+  readonly statuses?: Readonly<Partial<Record<StatusId, number>>>;
+  /** At least one move. */
+  readonly moves: readonly EnemyMoveDef[];
+}
+
+/** Enemy group tiers (spec: Combat node). Boss groups are never drawn; they appear only as fixed nodes. */
+export const GROUP_TIERS = ["normal", "hard", "elite", "boss"] as const;
+export type GroupTier = (typeof GROUP_TIERS)[number];
+/** The tiers a step band can weight (every tier but boss). */
+export type DrawnTier = Exclude<GroupTier, "boss">;
+export const DRAWN_TIERS: readonly DrawnTier[] = ["normal", "hard", "elite"];
+
+/** An enemy group: what one combat node fights (spec: Combat node). */
+export interface GroupDef extends Base {
+  readonly kind: "group";
+  readonly tier: GroupTier;
+  /** 1 to 3 enemy ids, in fight order; the same enemy may appear more than once. */
+  readonly enemies: readonly string[];
+  /** Localisation key of the story text shown on the choice screen. */
+  readonly text: string;
+}
+
+/** A step band of an act's tier weights: applies from step `from` until the next band. */
+export interface TierBand {
+  readonly from: number;
+  readonly weights: Readonly<Partial<Record<DrawnTier, number>>>;
+}
+
 /** One act of a run (spec: Run map, `act.json`). */
 export interface ActDef extends Base {
   readonly kind: "act";
@@ -174,9 +227,13 @@ export interface ActDef extends Base {
   readonly routes?: readonly RouteDef[];
   /** The act a run starts in; at most one per pack. */
   readonly first?: boolean;
+  /** The group ids combat nodes draw from (spec: Combat node). Present together with `tiers`, or neither. */
+  readonly groups?: readonly string[];
+  /** Step bands of tier weights; the first starts at step 1, `from` strictly increasing. */
+  readonly tiers?: readonly TierBand[];
 }
 
-export type ContentDef = CharacterDef | WeaponDef | ArmorDef | AccessoryDef | PathDef | SkillDef | WordDef | ActDef;
+export type ContentDef = CharacterDef | WeaponDef | ArmorDef | AccessoryDef | PathDef | SkillDef | WordDef | ActDef | EnemyDef | GroupDef;
 export type ContentKind = ContentDef["kind"];
 
 export interface ContentPack {

@@ -1,0 +1,10 @@
+{
+  "kind": "group",
+  "id": "group.reed_ambush",
+  "name": "group.reed_ambush.name",
+  "tier": "normal",
+  "enemies": [
+    "enemy.reed_stalker"
+  ],
+  "text": "group.reed_ambush.text"
+}
