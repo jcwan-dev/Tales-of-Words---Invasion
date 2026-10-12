@@ -41,7 +41,7 @@ export const BOSS = { at: "last", type: "combat", ref: "group.boss" } as const;
  * not first. `over` replaces whole fields; pass `undefined` to drop one.
  */
 export function actFile(id: string, over: Obj = {}): ContentFile {
-  const data: Obj = {
+  const merged: Obj = {
     kind: "act",
     id,
     name: `${id}.name`,
@@ -50,7 +50,7 @@ export function actFile(id: string, over: Obj = {}): ContentFile {
     fixed: [BOSS],
     ...over,
   };
-  for (const k of Object.keys(data)) if (data[k] === undefined) delete data[k];
+  const data: Obj = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined));
   return file(data);
 }
 

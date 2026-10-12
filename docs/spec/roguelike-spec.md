@@ -422,11 +422,12 @@ Each node type is a self-contained module registered with the run engine. The en
 ```
 interface NodeType {
   id: "event" | "combat" | "merchant" | ...
-  canAppear(run, act): bool        // filters by act, flags, loadout
-  build(run, data): NodeInstance   // rolls loot, enemies, stock
-  present(instance): Screen        // UI for this node
-  resolve(instance): NodeResult    // HP, gold, items, flags, skills
+  mayFollowItself: bool             // false for the merchant
+  canAppear(run, act): bool         // filters by act, flags, loadout
+  build({run, act, ref, rng}): option   // rolls loot, enemies, stock; story text and tag
 }
+// The node then runs its own interaction (fight, Ink event, shop) and hands the run a node result.
+// Its screen lives in the app, registered by the same id. Details in "Run map".
 NodeRegistry.register(new EventNode())
 NodeRegistry.register(new CombatNode())
 NodeRegistry.register(new MerchantNode())

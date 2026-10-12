@@ -171,6 +171,9 @@ function drawable(ctx: RunContext, run: RunState, act: ActDef): WeightedType[] {
 
 /** Fills `run.offer` for the current step and reports it. Throws Error if no type can be drawn (content bug). */
 function offerStep(ctx: RunContext, run: RunState, act: ActDef, events: RunEvent[]): void {
+  // Modules see the phase they are offered in, whichever command led here.
+  run.phase = "choosing";
+  run.offer = [];
   const fixed = fixedAt(act, run.step, run.steps);
   let offer: NodeOption[];
   if (fixed !== undefined) {
@@ -184,7 +187,6 @@ function offerStep(ctx: RunContext, run: RunState, act: ActDef, events: RunEvent
     offer = drawOptionTypes(rng, types).map((id, i) => buildOption(run, act, nodeType(ctx, id), null, false, i));
   }
   run.offer = offer;
-  run.phase = "choosing";
   events.push({ type: "OptionsOffered", act: act.id, step: run.step, options: offer.map((o) => ({ type: o.type, fixed: o.fixed })) });
 }
 

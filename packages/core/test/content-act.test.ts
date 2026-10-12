@@ -12,7 +12,7 @@ import { validatePack, type ContentFile, type ValidationResult } from "../src/in
 type Obj = Record<string, unknown>;
 
 const act = (id: string, over: Obj = {}, path = `${id}.json`): ContentFile => {
-  const data: Obj = {
+  const merged: Obj = {
     kind: "act",
     id,
     name: `${id}.name`,
@@ -21,7 +21,7 @@ const act = (id: string, over: Obj = {}, path = `${id}.json`): ContentFile => {
     fixed: [{ at: "last", type: "combat", ref: "group.boss" }],
     ...over,
   };
-  for (const k of Object.keys(data)) if (data[k] === undefined) delete data[k];
+  const data: Obj = Object.fromEntries(Object.entries(merged).filter(([, v]) => v !== undefined));
   return { path, data };
 };
 
