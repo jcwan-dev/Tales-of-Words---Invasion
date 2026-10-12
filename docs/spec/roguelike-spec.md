@@ -67,7 +67,7 @@ Every unit, player and enemy, has two life bars.
 
 ### Base characters
 - Every character starts at 2 in all seven stats and 3 in its two favoured stats.
-- At each level-up (end of each act, and after elite fights), the player is offered two stats, one always favoured, and raises one. A favoured stat gains +2; any other stat gains +1. Run cap is 7.
+- At each level-up (after elite fights and each act boss), the player is offered two stats, one always favoured, and raises one. A favoured stat gains +2; any other stat gains +1. Run cap is 7.
 - Most characters have two favoured stats. Later characters can break the rule (e.g. one favoured stat and stronger event triggers).
 
 | Character | Favoured stats | Base HP | Event triggers |
@@ -554,9 +554,10 @@ There is no map ahead: after each node, the next choices are drawn.
 **Level-ups** come after each **elite** and **boss** fight, after its rewards.
 - The player is offered **2 stats**: one of the character's favoured stats, and one more from the other stats (the other favoured stat included); only stats whose base value is below the run cap of 7 can be offered. If no favoured stat is below the cap, both come from the rest. Fewer eligible stats give a shorter offer; none means no level-up.
 - Picking a favoured stat gives **+2**, any other **+1**, never above 7 (base value, before items and path). Drawn on its own stream; level-ups can't be rerolled.
-- **Vitality:** each point gained raises max HP by 5 and **current HP by the same amount**.
+- **Vitality:** max HP is recomputed (5 per point of final Vitality) and **current HP rises by the same amount** as max HP.
 
 **Order after a fight:** rewards, then learning (if a skill was taken with a full hand), then the level-up, then the next step (or, after the boss, the routes).
+- **Details:** an act with enemy groups has a rewards table for all four tiers. A result naming a tier with no table is refused. A rarity or kind with weight 0 is never drawn; a kind whose drawable rarities are all empty can't be drawn. If nothing at all can be offered, there is no rewards screen. A card the player already holds is never gained twice (an item whose card is already held adds nothing). The reroll number counts rerolls of the current screen (each screen starts at 0). Level-up options list the favoured stat first. The node stays current through rewards, learning and level-up, and is cleared when the run moves on. A player revived after falling at a node with a tier goes through the same steps.
 
 ## Progression: Ink ✒
 Meta currency earned every run (win or lose) from steps cleared, bosses, lore found and first-time events. Never sold for money.
