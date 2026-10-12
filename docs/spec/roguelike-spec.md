@@ -142,7 +142,7 @@ Seffira, Viskan and Lina are not playable. They are legendary figures of the wor
 - Sources: accessory (if it gives one), companion, a **starting technique** (pick 1 of 3 before Act I, weighted to favoured stats), scrolls, trainers in events, merchants, level-ups, boss rewards.
 - Each skill lists its own scaling stats (one or two) with a value per point. The card shows the current number from your stats.
 - A skill is a list of effects built from a small set of building blocks: damage (physical or arcane, with a number of hits), heal, restore Shield, apply status, consume, summon, modify enemy intent. Each effect targets the user, the chosen enemy, or all enemies. New skills are new data, not new code.
-- Upgrades (e.g. "Cleave+") are separate entries pointing to their base skill; an upgrade can lower the cooldown.
+- Upgrades (e.g. "Cleave+") are separate entries; the base skill names its upgrade (`"upgrade": "skill.cleave_plus"`). An upgrade can lower the cooldown.
 
 ### Cards in combat (decided 11 Oct 2026)
 - **A unit's cards** are its skills for the fight, at most 5 for the player. Each card is ready or on cooldown (see "Turn details": cooldown N means N turns of waiting).
