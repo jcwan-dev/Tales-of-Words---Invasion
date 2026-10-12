@@ -4,7 +4,7 @@ import { resolveAttack } from "./attack.ts";
 import type { CardPlan, CardStep, StepReach } from "./cards.ts";
 import type { CombatContext } from "./context.ts";
 import { gateAllows } from "./gate.ts";
-import { baseValue, resolveConsume } from "./hit.ts";
+import { baseValue, floorAmount, resolveConsume } from "./hit.ts";
 import { moveIndex, pickIntent } from "./moves.ts";
 import { CombatStateImpl, type CombatState } from "./state.ts";
 import { endTurn } from "./turn.ts";
@@ -196,10 +196,10 @@ function applyStep(ctx: CombatContext, user: CombatUnit, target: CombatUnit, ste
       return;
     case "heal":
       // Scales with the user only (spec: Cards in combat).
-      heal(ctx, target, baseValue(step.amount, step.scaling, user.stats, user));
+      heal(ctx, target, floorAmount(baseValue(step.amount, step.scaling, user.stats, user)));
       return;
     case "restoreShield":
-      restoreShield(ctx, target, baseValue(step.amount, step.scaling, user.stats, user));
+      restoreShield(ctx, target, floorAmount(baseValue(step.amount, step.scaling, user.stats, user)));
       return;
     case "consume":
       resolveConsume(ctx, user, target, step.spec);

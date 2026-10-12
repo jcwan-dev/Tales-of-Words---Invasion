@@ -1,11 +1,13 @@
 // Public surface of the rules core. Everything here is pure and deterministic.
 export * from "./model/stats.ts";
+export * from "./model/rarity.ts";
 export * from "./rng/rng.ts";
 export * from "./run/limits.ts";
 export * from "./run/loadout.ts";
 export * from "./run/draw.ts";
 export * from "./run/run.ts";
 export * from "./run/player.ts";
+export * from "./run/progress.ts";
 export * from "./run/fight.ts";
 export * from "./nodes/types.ts";
 export * from "./nodes/registry.ts";

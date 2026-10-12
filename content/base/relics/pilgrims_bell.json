@@ -1,0 +1,8 @@
+{
+  "kind": "relic",
+  "id": "relic.pilgrims_bell",
+  "name": "relic.pilgrims_bell.name",
+  "statuses": {
+    "warded": 1
+  }
+}

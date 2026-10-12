@@ -4,6 +4,7 @@
  * every content pack, and at load time in development builds.
  */
 import { POWER_IDS } from "../combat/power-ids.ts";
+import { isRarity, RARITIES } from "../model/rarity.ts";
 import { isStatId, STAT_IDS } from "../model/stats.ts";
 import {
   DRAWN_TIERS,
@@ -48,6 +49,7 @@ const KIND_PREFIX: Record<ContentKind, string> = {
   act: "act",
   enemy: "enemy",
   group: "group",
+  relic: "relic",
 };
 
 const isInt = (v: unknown): v is number => isNum(v) && Number.isInteger(v);
@@ -170,15 +172,7 @@ function checkEnemy(c: Checker, d: Obj): void {
   c.num(d, "shield", { min: 0, optional: true, integer: true });
   c.powers(d);
   c.traits(d);
-  const statuses = d["statuses"];
-  if (statuses !== undefined) {
-    if (!isObj(statuses)) c.fail("statuses", "must be an object of status → starting stacks");
-    else
-      for (const [id, n] of Object.entries(statuses)) {
-        if (!(STATUS_IDS as readonly string[]).includes(id)) c.fail(`statuses.${id}`, "unknown status id");
-        if (!isInt(n) || n < 1) c.fail(`statuses.${id}`, "must be an integer >= 1");
-      }
-  }
+  c.startingStatuses(d);
   const moves = d["moves"];
   if (!Array.isArray(moves) || moves.length === 0) return c.fail("moves", "must be a non-empty array of moves");
   const seen = new Set<string>();
@@ -322,6 +316,28 @@ class Checker {
         }
     }
   }
+  /** Optional starting statuses: { <status id>: integer >= 1 } (enemies, relics). */
+  startingStatuses(o: Obj): void {
+    const v = o["statuses"];
+    if (v === undefined) return;
+    if (!isObj(v)) return this.fail("statuses", "must be an object of status → starting stacks");
+    for (const [id, n] of Object.entries(v)) {
+      if (!(STATUS_IDS as readonly string[]).includes(id)) this.fail(`statuses.${id}`, "unknown status id");
+      if (!isInt(n) || n < 1) this.fail(`statuses.${id}`, "must be an integer >= 1");
+    }
+  }
+  /**
+   * Optional startRarity (spec: Rarity): { <card id>: rarity }. The ids are checked against the pack in validatePack
+   * (a weapon, skill or Word).
+   */
+  startRarity(o: Obj): void {
+    const v = o["startRarity"];
+    if (v === undefined) return;
+    if (!isObj(v)) return this.fail("startRarity", "must be an object of card id → rarity");
+    for (const [id, r] of Object.entries(v)) {
+      if (!isRarity(r)) this.fail(`startRarity.${id}`, `unknown rarity; expected one of ${RARITIES.join(", ")}`);
+    }
+  }
   /** Optional hit count: an integer >= 1. */
   hits(o: Obj, field: string): void {
     const v = o["hits"];
@@ -416,6 +432,7 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
       c.traits(d);
       c.num(d, "hp", { min: 0, optional: true, integer: true });
       c.num(d, "shield", { min: 0, optional: true, integer: true });
+      c.startRarity(d);
       const a = d["attack"];
       if (!isObj(a)) c.fail("attack", "weapons must define their Strike as { damage, damageType, scaling }");
       else {
@@ -433,6 +450,7 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
       c.traits(d);
       c.num(d, "hp", { min: 0, optional: true, integer: true });
       c.num(d, "shield", { min: 0, optional: true, integer: true });
+      c.startRarity(d);
       if (kind === "accessory" && d["grants"] !== undefined && !isStr(d["grants"])) c.fail("grants", "must be a skill or word id");
       break;
     case "path":
@@ -442,6 +460,15 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
       // Only items give HP and Shield (spec: Loadout assembly, Details).
       if (d["hp"] !== undefined) c.fail("hp", "paths don't give HP; only items do");
       if (d["shield"] !== undefined) c.fail("shield", "paths don't give Shield; only items do");
+      c.startRarity(d);
+      break;
+    case "relic":
+      c.stats(d, "stats");
+      c.num(d, "hp", { min: 0, optional: true, integer: true });
+      c.num(d, "shield", { min: 0, optional: true, integer: true });
+      c.powers(d);
+      c.traits(d);
+      c.startingStatuses(d);
       break;
     case "word":
       // A Word is a skill with a glyph, a spoken form and a meaning.
@@ -493,6 +520,13 @@ export function validatePack(packId: string, files: readonly ContentFile[]): Val
     }
     if ((def.kind === "skill" || def.kind === "word") && def.upgrade !== undefined && !isSkillLike(def.upgrade)) {
       issues.push({ path: `${where}#upgrade`, message: `"${def.upgrade}" is not a skill or word in this pack` });
+    }
+    if (def.kind === "weapon" || def.kind === "armor" || def.kind === "accessory" || def.kind === "path") {
+      for (const id of Object.keys(def.startRarity ?? {})) {
+        if (!isSkillLike(id) && byId.get(id)?.kind !== "weapon") {
+          issues.push({ path: `${where}#startRarity.${id}`, message: `"${id}" is not a skill, Word or weapon (its Strike) in this pack` });
+        }
+      }
     }
     if (def.kind === "act") {
       (def.routes ?? []).forEach((r, i) => {
