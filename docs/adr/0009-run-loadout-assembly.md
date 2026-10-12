@@ -16,4 +16,4 @@ Spec 1.8 ("Loadout assembly") defines how the five picks (character, weapon, arm
 ## Consequences
 - Run state (level-ups against the cap of 7 on base stats, companions, learning skills) builds on `AssembledPlayer` without re-reading the picks.
 - Content can give any unit power or trait without code changes.
-- Code that looks for Strike by the id `"strike"` must instead use the first card, or the weapon's id.
+- Code that looks for Strike finds it by the weapon's id, never by `"strike"` or by position: Strike can be forgotten, so it isn't always the first card.

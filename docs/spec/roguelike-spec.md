@@ -111,6 +111,9 @@ The five picks build the player unit at the start of a run:
   - Only items give HP and Shield; paths change stats, rules, powers and traits.
   - A skill "scales with" a stat when any scaling entry in any of its effects uses that stat.
   - A technique the player already holds can't be picked (it is never offered).
+  - If fewer than two techniques scale with a favoured stat, the missing ones come from the whole pool, so the offer stays full while the pool allows.
+  - The player may start without a technique (as when leaving a new skill); an empty offer means starting without one.
+  - The offer's order carries no meaning; the screen decides how to show it.
   - A convert gives at least 1 stack.
   - Analyse is listed as a technique but needs effect types that don't exist yet (reveal intent); it joins the pool when they do.
 

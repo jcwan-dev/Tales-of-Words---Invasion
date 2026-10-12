@@ -57,3 +57,29 @@ describe("techniqueOffer (builder unit tests)", () => {
     expect(a.state()).not.toEqual(createRng("only").state());
   });
 });
+
+describe("content validation: traits keys (builder unit tests)", () => {
+  const withTraits = (traits: unknown): ContentFile => ({ path: "x.json", data: { kind: "accessory", id: "accessory.x", name: "n", traits } });
+
+  it("rejects an unknown key inside traits, at traits.<key>", () => {
+    const res = validatePack("t", [withTraits({ converts: [], slowDecays: [] })]);
+    expect(res.pack).toBeUndefined();
+    expect(res.issues.map((i) => i.path)).toEqual(["x.json#traits.slowDecays"]);
+  });
+
+  it("accepts the three known keys, empty or not", () => {
+    expect(validatePack("t", [withTraits({ converts: [], slowDecay: [], decayFloors: {} })]).issues).toEqual([]);
+  });
+});
+
+describe("techniqueOffer order (builder unit tests)", () => {
+  it("is shuffled: the favoured picks are not always first", () => {
+    const pack = packFrom([...slots, ...techniques]);
+    let otherFirst = 0;
+    for (let i = 0; i < 50; i++) {
+      const first = techniqueOffer(pack, picks, createRng(`shuffle-${i}`))[0];
+      if (first === "skill.c1" || first === "skill.c2") otherFirst++;
+    }
+    expect(otherFirst).toBeGreaterThan(0);
+  });
+});

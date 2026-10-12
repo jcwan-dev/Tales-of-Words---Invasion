@@ -103,6 +103,9 @@ class Checker {
     const v = o["traits"];
     if (v === undefined) return;
     if (!isObj(v)) return this.fail("traits", "must be an object");
+    for (const key of Object.keys(v)) {
+      if (key !== "converts" && key !== "slowDecay" && key !== "decayFloors") this.fail(`traits.${key}`, "unknown trait; expected converts, slowDecay or decayFloors");
+    }
     const isStatus = (x: unknown): boolean => (STATUS_IDS as readonly unknown[]).includes(x);
     const converts = v["converts"];
     if (converts !== undefined) {

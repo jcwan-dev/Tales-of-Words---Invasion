@@ -141,7 +141,10 @@ function powersOf(sources: readonly (PowerBonus | undefined)[]): Record<PowerId,
   return total;
 }
 
-/** Converts and slow decay concatenate in slot order; decay floors merge by max. */
+/**
+ * Converts and slow decay concatenate in slot order; decay floors merge by max. Entries are copied, so the
+ * unit never shares objects with the content pack.
+ */
 function traitsOf(sources: readonly (UnitTraits | undefined)[]): UnitTraits {
   const converts: ConvertTrigger[] = [];
   const slowDecay: SlowDecay[] = [];
@@ -149,7 +152,7 @@ function traitsOf(sources: readonly (UnitTraits | undefined)[]): UnitTraits {
   for (const t of sources) {
     if (t === undefined) continue;
     for (const c of t.converts ?? []) converts.push({ ...c });
-    for (const e of t.slowDecay ?? []) slowDecay.push(e);
+    for (const e of t.slowDecay ?? []) slowDecay.push({ ...e, statuses: "tag" in e.statuses ? { ...e.statuses } : [...e.statuses] });
     for (const [id, min] of Object.entries(t.decayFloors ?? {}) as [StatusId, number | undefined][]) {
       if (min !== undefined) decayFloors[id] = Math.max(decayFloors[id] ?? 0, min);
     }
@@ -183,7 +186,7 @@ const isTechnique = (def: SkillLike): boolean => (def.tags ?? []).includes(TECHN
  * The starting technique offer (spec: Loadout assembly): 3 + intelligenceBonusOptions(final Intelligence)
  * skill ids from the technique pool. Up to two scale with a favoured stat, the rest come from the whole pool;
  * no repeats, never a card already held; shorter if the pool runs out. The pool is taken in id order, so the
- * offer depends only on the content and the rng. Throws RangeError for an unknown or wrong-kind pick.
+ * offer depends only on the content and the rng; the offer is shuffled at the end, as its order means nothing. Throws RangeError for an unknown or wrong-kind pick.
  */
 export function techniqueOffer(pack: ContentPack, picks: LoadoutPicks, rng: Rng): readonly string[] {
   const r = resolve(pack, picks);
@@ -202,6 +205,16 @@ export function techniqueOffer(pack: ContentPack, picks: LoadoutPicks, rng: Rng)
   const favoured = pool.filter((d) => scalesWithAny(d, r.character.favoured));
   while (offer.length < TECHNIQUE_FAVOURED && favoured.length > 0) take(favoured, pool, offer, rng);
   while (offer.length < size && pool.length > 0) take(pool, favoured, offer, rng);
+  // The order carries no meaning (spec): shuffle, so the favoured picks don't always come first.
+  for (let i = offer.length - 1; i > 0; i--) {
+    const j = rng.int(0, i);
+    const a = offer[i];
+    const b = offer[j];
+    if (a !== undefined && b !== undefined) {
+      offer[i] = b;
+      offer[j] = a;
+    }
+  }
   return offer;
 }
 
