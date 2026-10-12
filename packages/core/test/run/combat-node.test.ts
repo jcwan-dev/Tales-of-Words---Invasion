@@ -624,7 +624,7 @@ describe("winning a fight", () => {
     expect(playerOf(session).fallen).toBe(false);
   });
 
-  it("finishFight completes the node with the HP lost and no crowns, and the run moves on", () => {
+  it("finishFight completes the node with the HP lost and no crowns, then the rewards screen (spec 1.11)", () => {
     const { ctx, run, session } = fightAgainst("group.dummy");
     const hpBefore = run.player.hp;
     const crownsBefore = run.crowns;
@@ -636,9 +636,10 @@ describe("winning a fight", () => {
     expect(events[0]).toEqual({ type: "NodeCompleted", nodeType: "combat", hpChange: hpAfter - hpBefore, crownsChange: 0, hp: hpAfter, crowns: crownsBefore });
     expect(run.player.hp).toBe(hpAfter);
     expect(run.crowns).toBe(crownsBefore);
-    expect(run.phase).toBe("choosing");
-    expect(run.step).toBe(2);
-    expect(run.node).toBeNull();
+    // Spec 1.11: a won fight opens the rewards screen before the run moves on (rewards.test.ts covers the rest).
+    expect(kinds(events)).toEqual(["NodeCompleted", "RewardsOffered"]);
+    expect(run.phase).toBe("rewards");
+    expect(run.step).toBe(1);
   });
 
   it("finishFight is refused while the fight is ongoing, and after the node is done", () => {
