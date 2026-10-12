@@ -2,6 +2,7 @@
   "kind": "word",
   "id": "word.bing",
   "name": "word.bing.name",
+  "rarity": "uncommon",
   "glyph": "冰",
   "spoken": "Bing",
   "meaning": "word.bing.meaning",

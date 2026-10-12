@@ -2,6 +2,7 @@
   "kind": "skill",
   "id": "skill.mend",
   "name": "skill.mend.name",
+  "rarity": "common",
   "cooldown": 2,
   "tags": ["technique"],
   "effects": [

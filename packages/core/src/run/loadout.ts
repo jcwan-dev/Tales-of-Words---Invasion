@@ -252,7 +252,7 @@ export function assemblePlayer(pack: ContentPack, picks: LoadoutPicks, technique
     cards.push(cardFromSkill(technique));
   }
 
-  const maxHp = maxHpFromVitality(body.stats.vitality) + body.itemHp;
+  const maxHp = maxHpOf(body);
   const unit = playerInit(body, maxHp, maxHp, cards);
   return { unit, baseStats, eventTags: [...r.character.eventTags], rules: [...(r.path.rules ?? [])] };
 }
@@ -276,6 +276,26 @@ function bodyOf(r: Resolved, baseStats: StatBlock): LoadoutBody {
     powers: powersOf([r.weapon.powers, r.armor.powers, r.accessory.powers, r.path.powers]),
     traits: traitsOf([r.weapon.traits, r.armor.traits, r.accessory.traits, r.path.traits]),
   };
+}
+
+/** Max HP = 20 + 5 × final Vitality + the items' HP (spec: Loadout assembly). */
+const maxHpOf = (body: LoadoutBody): number => maxHpFromVitality(body.stats.vitality) + body.itemHp;
+
+/** Final stats and max HP of a loadout. */
+export interface LoadoutTotals {
+  /** Base stats + item and path modifiers, floor 0. */
+  readonly stats: StatBlock;
+  /** 20 + 5 × final Vitality + the items' HP. */
+  readonly maxHp: number;
+}
+
+/**
+ * The final stats and max HP of `picks` on `baseStats`, with the same modifiers and formula as `assemblePlayer`
+ * (item swaps and level-ups recompute max HP with it). Throws RangeError for unknown or wrong-kind picks.
+ */
+export function loadoutTotals(pack: ContentPack, picks: LoadoutPicks, baseStats: StatBlock): LoadoutTotals {
+  const body = bodyOf(resolve(pack, picks), baseStats);
+  return { stats: body.stats, maxHp: maxHpOf(body) };
 }
 
 /** The player's UnitInit: id "player", Shield full, no statuses. */

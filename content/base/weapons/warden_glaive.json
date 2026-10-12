@@ -1,0 +1,21 @@
+{
+  "kind": "weapon",
+  "id": "weapon.warden_glaive",
+  "name": "weapon.warden_glaive.name",
+  "rarity": "rare",
+  "stats": {
+    "might": 2,
+    "agility": -1
+  },
+  "shield": 4,
+  "attack": {
+    "damage": 5,
+    "damageType": "physical",
+    "scaling": [
+      {
+        "stat": "might",
+        "per": 2
+      }
+    ]
+  }
+}

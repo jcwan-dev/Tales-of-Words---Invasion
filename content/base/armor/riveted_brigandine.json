@@ -2,6 +2,7 @@
   "kind": "armor",
   "id": "armor.riveted_brigandine",
   "name": "armor.riveted_brigandine.name",
+  "rarity": "uncommon",
   "stats": {
     "vitality": 1,
     "agility": -1

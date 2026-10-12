@@ -1,0 +1,27 @@
+{
+  "kind": "skill",
+  "id": "skill.riposte",
+  "name": "skill.riposte.name",
+  "rarity": "uncommon",
+  "cooldown": 2,
+  "effects": [
+    {
+      "type": "status",
+      "status": "warded",
+      "stacks": 1,
+      "target": "self"
+    },
+    {
+      "type": "damage",
+      "damageType": "physical",
+      "amount": 3,
+      "target": "enemy",
+      "scaling": [
+        {
+          "stat": "agility",
+          "per": 2
+        }
+      ]
+    }
+  ]
+}

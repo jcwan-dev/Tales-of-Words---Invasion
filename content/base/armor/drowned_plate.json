@@ -1,0 +1,12 @@
+{
+  "kind": "armor",
+  "id": "armor.drowned_plate",
+  "name": "armor.drowned_plate.name",
+  "rarity": "rare",
+  "stats": {
+    "vitality": 2,
+    "agility": -2
+  },
+  "hp": 12,
+  "shield": 12
+}

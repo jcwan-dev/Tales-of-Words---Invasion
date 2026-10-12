@@ -79,6 +79,14 @@ interface Base {
   readonly name: string;
 }
 
+/** How rare a skill, Word or item is on the rewards screen (spec: Rewards, items and level-ups). Default "common". */
+export const RARITIES = ["common", "uncommon", "rare"] as const;
+export type Rarity = (typeof RARITIES)[number];
+
+/** What a rewards option can be: a skill or Word, an item, or a crowns purse. */
+export const REWARD_KINDS = ["skill", "item", "crowns"] as const;
+export type RewardKind = (typeof REWARD_KINDS)[number];
+
 export interface CharacterDef extends Base {
   readonly kind: "character";
   readonly favoured: readonly StatId[];
@@ -86,6 +94,8 @@ export interface CharacterDef extends Base {
 }
 
 interface ItemBase extends Base {
+  /** Rewards rarity (default "common"). */
+  readonly rarity?: Rarity;
   readonly stats?: StatBonus;
   readonly hp?: number;
   readonly shield?: number;
@@ -133,6 +143,8 @@ export interface SkillDef extends Base {
   readonly upgrade?: string;
   /** Pool tags, e.g. "technique" for the starting technique offer (spec: Loadout assembly). */
   readonly tags?: readonly string[];
+  /** Rewards rarity (default "common"). */
+  readonly rarity?: Rarity;
 }
 
 /** A Word is a skill with a glyph, a spoken form and a meaning (spec: Magic: words of power). */
@@ -214,6 +226,16 @@ export interface TierBand {
   readonly weights: Readonly<Partial<Record<DrawnTier, number>>>;
 }
 
+/**
+ * One tier's rewards table (spec: Rewards, items and level-ups): the weights of the option kinds and of the rarities
+ * (non-negative integers, at least one above 0 in each) and the purse range (integers, 0 <= min <= max).
+ */
+export interface RewardTableDef {
+  readonly kinds: Readonly<Partial<Record<RewardKind, number>>>;
+  readonly rarity: Readonly<Partial<Record<Rarity, number>>>;
+  readonly crowns: { readonly min: number; readonly max: number };
+}
+
 /** One act of a run (spec: Run map, `act.json`). */
 export interface ActDef extends Base {
   readonly kind: "act";
@@ -231,6 +253,8 @@ export interface ActDef extends Base {
   readonly groups?: readonly string[];
   /** Step bands of tier weights; the first starts at step 1, `from` strictly increasing. */
   readonly tiers?: readonly TierBand[];
+  /** Rewards tables by the fight's tier. Required, for all four tiers, when the act has `groups`. */
+  readonly rewards?: Readonly<Partial<Record<GroupTier, RewardTableDef>>>;
 }
 
 export type ContentDef = CharacterDef | WeaponDef | ArmorDef | AccessoryDef | PathDef | SkillDef | WordDef | ActDef | EnemyDef | GroupDef;

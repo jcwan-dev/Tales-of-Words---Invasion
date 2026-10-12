@@ -8,6 +8,8 @@ import { isStatId, STAT_IDS } from "../model/stats.ts";
 import {
   DRAWN_TIERS,
   GROUP_TIERS,
+  RARITIES,
+  REWARD_KINDS,
   STATUS_IDS,
   STATUS_TAGS,
   TRIGGER_EVENTS,
@@ -127,6 +129,49 @@ function checkAct(c: Checker, d: Obj): void {
     else if (new Set(groups).size !== groups.length) c.fail("groups", "must not list a group twice");
   }
   if (tiers !== undefined) checkTiers(c, tiers);
+
+  // Rewards tables (spec: Rewards, items and level-ups): an act with groups needs one for all four tiers.
+  const rewards = d["rewards"];
+  if (rewards === undefined) {
+    if (groups !== undefined) c.fail("rewards", `an act with groups needs rewards for every tier (${GROUP_TIERS.join(", ")})`);
+  } else checkRewards(c, rewards, groups !== undefined);
+}
+
+/** Weights by key: an object of known keys → integers >= 0, at least one above 0. */
+function checkWeights(c: Checker, v: unknown, field: string, keys: readonly string[]): void {
+  if (!isObj(v)) return c.fail(field, `must be an object of ${keys.join(" / ")} → weight`);
+  let positive = false;
+  for (const [key, w] of Object.entries(v)) {
+    if (!keys.includes(key)) c.fail(`${field}.${key}`, `unknown key; expected one of ${keys.join(", ")}`);
+    if (!isInt(w) || w < 0) c.fail(`${field}.${key}`, "must be an integer >= 0");
+    else if (w > 0) positive = true;
+  }
+  if (!positive) c.fail(field, "at least one weight must be above 0");
+}
+
+const TABLE_KEYS: readonly string[] = ["kinds", "rarity", "crowns"];
+
+/** `rewards`: tier → { kinds, rarity, crowns }; every tier required when `allTiers`. */
+function checkRewards(c: Checker, rewards: unknown, allTiers: boolean): void {
+  if (!isObj(rewards)) return c.fail("rewards", "must be an object of tier → rewards table");
+  for (const [tier, t] of Object.entries(rewards)) {
+    const f = `rewards.${tier}`;
+    if (!(GROUP_TIERS as readonly string[]).includes(tier)) c.fail(f, `unknown tier; expected one of ${GROUP_TIERS.join(", ")}`);
+    if (!isObj(t)) {
+      c.fail(f, "must be { kinds, rarity, crowns }");
+      continue;
+    }
+    for (const key of Object.keys(t)) if (!TABLE_KEYS.includes(key)) c.fail(`${f}.${key}`, "unknown key; expected kinds, rarity or crowns");
+    checkWeights(c, t["kinds"], `${f}.kinds`, REWARD_KINDS);
+    checkWeights(c, t["rarity"], `${f}.rarity`, RARITIES);
+    const crowns = t["crowns"];
+    if (!isObj(crowns) || !isInt(crowns["min"]) || !isInt(crowns["max"])) c.fail(`${f}.crowns`, "must be { min, max } with integer values");
+    else if (crowns["min"] < 0) c.fail(`${f}.crowns.min`, "must be >= 0");
+    else if (crowns["max"] < crowns["min"]) c.fail(`${f}.crowns.max`, "must be >= min");
+  }
+  if (allTiers) {
+    for (const tier of GROUP_TIERS) if (rewards[tier] === undefined) c.fail(`rewards.${tier}`, "missing: an act with groups needs rewards for every tier");
+  }
 }
 
 /** Tier bands: non-empty, the first from step 1, `from` strictly increasing; weights for drawn tiers only. */
@@ -376,7 +421,14 @@ class Checker {
   }
 }
 
+/** Optional rewards rarity (spec: Rewards, items and level-ups). */
+function checkRarity(c: Checker, d: Obj): void {
+  const r = d["rarity"];
+  if (r !== undefined && !(RARITIES as readonly unknown[]).includes(r)) c.fail("rarity", `must be one of ${RARITIES.join(", ")}`);
+}
+
 function checkSkillFields(c: Checker, d: Obj): void {
+  checkRarity(c, d);
   c.tags(d);
   // Spec: only Strike has no cooldown, and Strike lives on the weapon, not here.
   c.num(d, "cooldown", { min: 1, integer: true });
@@ -411,6 +463,7 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
       break;
     }
     case "weapon": {
+      checkRarity(c, d);
       c.stats(d, "stats");
       c.powers(d);
       c.traits(d);
@@ -428,6 +481,7 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
     }
     case "armor":
     case "accessory":
+      checkRarity(c, d);
       c.stats(d, "stats");
       c.powers(d);
       c.traits(d);

@@ -167,7 +167,8 @@ function isSessionNode(run: RunState, session: FightSession): boolean {
 }
 
 /**
- * Hands a finished fight to the run. Won: completes the node with the HP change only (no crowns). Fallen: the
+ * Hands a finished fight to the run. Won: completes the node with the HP change and the group's tier as `rewardTier`
+ * (no crowns: the rewards screen pays, then the level-up for elite and boss groups). Fallen: the
  * player falls in the node (fallInNode). Refused (wrong_phase) while the fight is ongoing, when the run isn't in
  * this fight's node, for a session not made by startFight, or for a fall already reported (a revive continues the
  * fight with resumeFightAfterRevive; the same fall can't be reported, and revived, twice).
@@ -183,7 +184,7 @@ export function finishFight(ctx: RunContext, run: RunState, session: FightSessio
     if (res.ok) session.fallReported = true;
     return res;
   }
-  return completeNode(ctx, run, { hp: session.player.hp - run.player.hp });
+  return completeNode(ctx, run, { hp: session.player.hp - run.player.hp, rewardTier: groupOf(ctx.pack, session.group).tier });
 }
 
 /**
