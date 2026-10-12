@@ -1,0 +1,12 @@
+{
+  "kind": "act",
+  "id": "act.drowned_marches",
+  "name": "act.drowned_marches.name",
+  "first": true,
+  "steps": { "min": 10, "max": 14 },
+  "weights": { "event": 50, "combat": 35, "merchant": 15 },
+  "fixed": [
+    { "at": 6, "type": "event", "ref": "event.act1_crossroads" },
+    { "at": "last", "type": "combat", "ref": "group.act1_boss" }
+  ]
+}

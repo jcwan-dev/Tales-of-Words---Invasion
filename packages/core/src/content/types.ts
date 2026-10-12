@@ -144,7 +144,39 @@ export interface WordDef extends Omit<SkillDef, "kind"> {
   readonly meaning: string;
 }
 
-export type ContentDef = CharacterDef | WeaponDef | ArmorDef | AccessoryDef | PathDef | SkillDef | WordDef;
+/**
+ * A node fixed at one step of an act (spec: Run map): `at` is a step from 1 to min − 1, or "last" (the boss).
+ * `type` is a node type id; `ref` is the data its module builds from (an event id, a boss group id).
+ */
+export interface FixedNodeDef {
+  readonly at: number | "last";
+  readonly type: string;
+  readonly ref?: string;
+}
+
+/** A route to the next act: open when every flag in `flags` is set and none in `notFlags` is. */
+export interface RouteDef {
+  readonly to: string;
+  readonly flags?: readonly string[];
+  readonly notFlags?: readonly string[];
+}
+
+/** One act of a run (spec: Run map, `act.json`). */
+export interface ActDef extends Base {
+  readonly kind: "act";
+  /** The step count is rolled once, uniformly in [min, max], when the run enters the act. 2 ≤ min ≤ max. */
+  readonly steps: { readonly min: number; readonly max: number };
+  /** Node type id → non-negative integer weight; at least one above 0. */
+  readonly weights: Readonly<Record<string, number>>;
+  /** Fixed nodes; exactly one is "last" (the boss). */
+  readonly fixed: readonly FixedNodeDef[];
+  /** The next acts. None (or []) ends the run in victory after the boss. */
+  readonly routes?: readonly RouteDef[];
+  /** The act a run starts in; at most one per pack. */
+  readonly first?: boolean;
+}
+
+export type ContentDef = CharacterDef | WeaponDef | ArmorDef | AccessoryDef | PathDef | SkillDef | WordDef | ActDef;
 export type ContentKind = ContentDef["kind"];
 
 export interface ContentPack {
