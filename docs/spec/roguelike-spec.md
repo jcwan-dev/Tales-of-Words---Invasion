@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.8 (12 Oct 2026)
+**Version:** Draft 1.9 (12 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.9:** Run map (decided 12 Oct 2026): no map ahead, choices drawn at each step; always 3 options with at least two node types, no merchant right after a merchant; step count rolled once per act from `act.json`; fixed nodes (mid-act event, boss) replace the choice at their step; routes after the boss by story flags; run state is plain data and quitting mid-node restarts that node with the same seed; revive at half HP rounded up.
 - **1.8:** Loadout assembly: how stats, HP, Shield, powers, traits and starting cards are built from the five picks; stat floor 0; the run cap of 7 limits level-ups only; the starting technique offer (2 favoured + 1 any; more options with Intelligence 4 and 6); the companion's skill counts toward the 5 cards (fixes a contradiction).
 - **1.7:** No energy: one action per turn (Strike, one ready skill incl. the companion's, or pass); skill costs removed; cooldowns are the only limit. Cards in combat (target choice, multi-hit damage effects). Enemy moves: weighted, with cooldowns, one per turn, picked in advance so the intent is exact.
 - **1.6:** Consume effects can set a cap (eat up to N stacks). Slow decay names the statuses it slows (by id or tag) and whose (own or the other side's). New decay floors: a status never decays below a minimum (Glutton's Path).
@@ -30,7 +31,7 @@ A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormad
 ## Core loop
 1. **Loadout:** pick one character, weapon, armor, accessory and path.
 2. **Act opening:** illustration and prologue text.
-3. **Steps:** 10–14 steps per act. At each step the player picks from 2–3 next nodes (event, combat, merchant), each described in story words with its type shown as a tag.
+3. **Steps:** 10–14 steps per act. At each step the player picks from 3 next nodes (event, combat, merchant; see "Run map"), each described in story words with its type shown as a tag.
 4. **Act boss:** fixed combat at act end, then a route choice into the next act.
 5. **End of run:** victory or death; earn Ink and lore entries.
 6. **Archive:** spend Ink on unlocks, start a new tale.
@@ -481,6 +482,33 @@ content/
 ```
 
 `act.json` defines step count, node weights (e.g. event 50 / combat 35 / merchant 15), fixed nodes at given steps (mid-act event, boss), and routes to next acts conditioned on story flags.
+
+### Run map (decided 12 Oct 2026)
+There is no map ahead: after each node, the next choices are drawn.
+
+**`act.json`** (content kind `act`, id `act.<name>`):
+- `steps`: `{ "min", "max" }`, integers with 2 ≤ min ≤ max. The run rolls the act's step count once, when it enters the act, uniformly in that range. The count is shown ("step 4 / 12").
+- `weights`: node type id → non-negative integer, e.g. `{ "event": 50, "combat": 35, "merchant": 15 }`. At least one weight above 0. A type id the run engine has no module for is an error when the run starts (content validation doesn't know the modules).
+- `fixed`: fixed nodes, each `{ "at", "type", "ref" }`. `at` is a step number from 1 to min − 1, or `"last"`. Exactly one fixed node is `"last"` (the boss). At most one fixed node per step. `ref` is the data the node module builds from (an event id, a boss group id); the module checks it.
+- `routes` (optional): the next acts, each `{ "to", "flags"?, "notFlags"? }`. `to` is an act id in the same pack. A route is open when every flag in `flags` is set and none in `notFlags` is. If an act has routes, at least one has no conditions, so a route is always open. An act with no routes ends the run in victory after its boss.
+- `first` (optional, `true`): the act a run starts in. At most one per pack.
+
+**Choices at a step:**
+- A step with a fixed node offers only that node (the player confirms it; there is no choice). Weights and the rules below don't apply to it.
+- Otherwise the step offers **3 options**. The node types that can be drawn are those with a weight above 0 whose module allows them now (`canAppear`), minus a type that may not follow itself (the merchant) if the player's previous node was of that type. The previous node can be in the previous act, and a fixed node counts.
+- Options 1 and 2 are drawn by weight from those types (the same type may come twice). If they are the same type and another type can be drawn, option 3 is drawn by weight from the other types only; otherwise option 3 is drawn like the first two. So a step shows at least two types whenever two are possible.
+- Each option is built when it is offered (enemies, stock, its story text and its tag such as "Combat · Hard"), so what the player reads is what they get. Two options of the same type are different nodes.
+- If no type can be drawn at a step, the content is broken: the run engine reports an error rather than skip the step.
+- Randomness: the step count, each step's draw and each option's build use their own streams from the run seed, the act and the step (and the option's position), so nothing else in the run shifts them.
+
+**Node modules.** The engine knows only the interface: a node type has an id, says whether it may follow itself, says whether it can appear now, and builds an option from the run, the act, an optional `ref` and its RNG. The node then runs its own interaction (a fight, an Ink event, a shop) and hands the engine a **node result**: HP change, crowns change, story flags set or cleared (more fields come with rewards and learning). The engine applies it: HP stays between 0 and max HP; crowns never go below 0 (a result that would is a module bug and is refused). Event, combat and merchant modules arrive in later M2 steps.
+
+**Run state** is plain data (it survives a JSON round trip): seed, phase, the loadout picks and assembled player data (HP, max HP, cards, base stats, event tags, path rules), crowns (start at 0, a placeholder for balance), story flags, run limits, the current act, step and step count, the current offer, the node being played and the previous node's type. Node progress (a fight in progress, a position in an Ink story) is not part of it.
+- **Phases:** choosing a node → in a node → (after the boss) choosing a route → next act; or fallen; or ended (won or lost).
+- **Pausing:** the run is saved between nodes and when a node is entered. Quitting in the middle of a node and resuming restarts that node from its beginning: it was built from its own seed, so the same enemies, stock and text come back.
+- **Commands in, events out:** choosing an option, completing a node, choosing a route, reviving and ending the run are commands. A command that doesn't fit the phase, or names an option or route that doesn't exist, is refused and changes nothing.
+- **Falling:** a node result that takes HP to 0 makes the player fall. They may revive (if the run limit allows it and a grant is given) at half max HP, rounded up, or let the tale end (the run is lost). Outside a fight, a revived player moves on as if the node had finished; how a revive continues a fight is decided with the combat node.
+- After the last step's node, the run offers the open routes; choosing one starts that act at step 1 with a newly rolled step count. With no routes, the run is won.
 
 ## Progression: Ink ✒
 Meta currency earned every run (win or lose) from steps cleared, bosses, lore found and first-time events. Never sold for money.
