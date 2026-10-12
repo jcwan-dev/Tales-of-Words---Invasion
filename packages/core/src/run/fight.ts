@@ -32,6 +32,18 @@ export interface FightSession {
 
 export type FightOutcome = "ongoing" | "won" | "fallen";
 
+/** The session behind `FightSession`: also remembers whether its current fall was already reported to the run. */
+class Session implements FightSession {
+  /** finishFight reported the current fall (fallInNode); cleared when the fight is resumed after the revive. */
+  fallReported = false;
+  constructor(
+    readonly state: CombatState,
+    readonly player: CombatUnit,
+    readonly group: string,
+    readonly node: FightSession["node"],
+  ) {}
+}
+
 /** The id of the player's unit in every fight. */
 export const PLAYER_UNIT_ID = "player";
 
@@ -122,7 +134,7 @@ export function startFight(ctx: RunContext, run: RunState): FightSession {
   };
   const state = beginCombat(combat, units);
   runUntilPlayer(state);
-  return { state, player, group: group.id, node: { actNumber: run.actNumber, act: run.act, step: run.step, option: node.option } };
+  return new Session(state, player, group.id, { actNumber: run.actNumber, act: run.act, step: run.step, option: node.option });
 }
 
 /**
@@ -156,27 +168,38 @@ function isSessionNode(run: RunState, session: FightSession): boolean {
 
 /**
  * Hands a finished fight to the run. Won: completes the node with the HP change only (no crowns). Fallen: the
- * player falls in the node (fallInNode). Refused (wrong_phase) while the fight is ongoing or when the run isn't in
- * this fight's node.
+ * player falls in the node (fallInNode). Refused (wrong_phase) while the fight is ongoing, when the run isn't in
+ * this fight's node, for a session not made by startFight, or for a fall already reported (a revive continues the
+ * fight with resumeFightAfterRevive; the same fall can't be reported, and revived, twice).
  */
 export function finishFight(ctx: RunContext, run: RunState, session: FightSession): CommandResult {
   const outcome = fightOutcome(session);
-  if (outcome === "ongoing" || run.phase !== "inNode" || !isSessionNode(run, session)) return { ok: false, reason: "wrong_phase" };
-  if (outcome === "fallen") return fallInNode(run);
+  if (!(session instanceof Session) || outcome === "ongoing" || run.phase !== "inNode" || !isSessionNode(run, session)) {
+    return { ok: false, reason: "wrong_phase" };
+  }
+  if (outcome === "fallen") {
+    if (session.fallReported) return { ok: false, reason: "wrong_phase" };
+    const res = fallInNode(run);
+    if (res.ok) session.fallReported = true;
+    return res;
+  }
   return completeNode(ctx, run, { hp: session.player.hp - run.player.hp });
 }
 
 /**
  * After a revive put the run back in the node, continues the fight (spec: Combat node, "The player falls"): the
- * player's HP = the run's HP, Shield full, statuses cleared, cooldowns kept; the enemies unchanged; the player acts
- * next, in a new round. Throws RangeError if the run isn't in this fight's node with HP above 0, or the fight
- * isn't fallen.
+ * player's HP = the run's HP, Shield full, statuses cleared, cooldowns kept; the enemies unchanged. The turn the
+ * player fell in is finished first, as any turn ends (reopenFight), then the player acts next, in a new round. If
+ * the enemies had fallen too, the fight is won at once. Throws RangeError if the run isn't in this fight's node
+ * with HP above 0, or the fight isn't fallen, or its fall wasn't reported with finishFight.
  */
 export function resumeFightAfterRevive(run: RunState, session: FightSession): void {
   if (run.phase !== "inNode" || !isSessionNode(run, session) || run.player.hp <= 0) {
     throw new RangeError("resumeFightAfterRevive: the run is not back in this fight's node");
   }
   if (fightOutcome(session) !== "fallen") throw new RangeError("resumeFightAfterRevive: the fight is not fallen");
+  if (!(session instanceof Session) || !session.fallReported) throw new RangeError("resumeFightAfterRevive: the fall was not reported with finishFight");
+  session.fallReported = false;
   const p = session.player;
   p.hp = Math.min(run.player.hp, p.maxHp);
   p.shield = p.maxShield;
