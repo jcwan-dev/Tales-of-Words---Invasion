@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.10 (12 Oct 2026)
+**Version:** Draft 1.11 (12 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.11:** Rewards, items and level-ups (decided 12 Oct 2026): after every won fight, pick 1 of 3 rewards (skill or Word, item, crowns purse) drawn from the act's table for the fight's tier, with rarity; Intelligence adds skill or Word options; rerolls (3 per run) redraw the screen on their own stream; one item per slot, a new item replaces the old one and the cards items give leave with them; level-ups after elite and boss fights (2 stats, one favoured, +2 / +1, cap 7), Vitality gains heal by the same amount.
 - **1.10:** Combat node (decided 12 Oct 2026): enemies and enemy groups as data; groups tiered normal / hard / elite / boss; the act's tier weights shift by step band, no stat scaling; HP carries over, Shield refills, statuses and cooldowns reset each fight; a fall mid-fight can be revived and the fight continues (half HP, Shield full, the player's statuses cleared, the player acts next); fights give no crowns directly (crowns come from rewards, step 4).
 - **1.9:** Run map (decided 12 Oct 2026): no map ahead, choices drawn at each step; always 3 options with at least two node types, no merchant right after a merchant; step count rolled once per act from `act.json`; fixed nodes (mid-act event, boss) replace the choice at their step; routes after the boss by story flags; run state is plain data and quitting mid-node restarts that node with the same seed; revive at half HP rounded up.
 - **1.8:** Loadout assembly: how stats, HP, Shield, powers, traits and starting cards are built from the five picks; stat floor 0; the run cap of 7 limits level-ups only; the starting technique offer (2 favoured + 1 any; more options with Intelligence 4 and 6); the companion's skill counts toward the 5 cards (fixes a contradiction).
@@ -136,7 +137,7 @@ Seffira, Viskan and Lina are not playable. They are legendary figures of the wor
 - **Strike** (weapon basic attack) is the only skill with no cooldown, so it is always available as your action. Every other skill has a cooldown of at least 1 turn.
 - **Gaining a skill when full:** the new card is shown above the current five. The player forgets one current skill or leaves the new one. Forgetting is permanent for the run.
 - **Strike can be forgotten.** A player can run only cooldown skills, risking turns where nothing is ready; then the only option is to pass. The game warns once before Strike is dropped.
-- Changing weapon mid-run offers the new weapon's Strike as a new skill through the same choice. The weapon's stat bonus applies either way.
+- Changing weapon mid-run: the old weapon's Strike leaves with it, and the new weapon's Strike is gained like any new skill (it takes the free slot; if the old Strike had been forgotten and the hand is full, forget one or leave it). The weapon's stat bonus applies either way. The same holds for an accessory's granted skill or Word (see "Rewards, items and level-ups").
 - Forgetting the companion's skill doesn't make them leave; they keep their event triggers. If they leave, their skill goes with them and frees the slot.
 - Sources: accessory (if it gives one), companion, a **starting technique** (pick 1 of 3 before Act I, weighted to favoured stats), scrolls, trainers in events, merchants, level-ups, boss rewards.
 - Each skill lists its own scaling stats (one or two) with a value per point. The card shows the current number from your stats.
@@ -506,7 +507,7 @@ There is no map ahead: after each node, the next choices are drawn.
 - Randomness: the step count, each step's draw and each option's build use their own streams from the run seed, the act's position in the run (1st, 2nd, …), the act and the step (and the option's position), so nothing else in the run shifts them, and an act visited twice is drawn afresh.
 - Options are shown in the order drawn (option 3 last).
 
-**Node modules.** The engine knows only the interface: a node type has an id, says whether it may follow itself, says whether it can appear now, and builds an option from the run, the act, an optional `ref` and its RNG. The node then runs its own interaction (a fight, an Ink event, a shop) and hands the engine a **node result**: HP change, crowns change, story flags set or cleared (more fields come with rewards and learning). The engine applies it: HP stays between 0 and max HP; crowns never go below 0 (a result that would is a module bug and is refused). Event, combat and merchant modules arrive in later M2 steps.
+**Node modules.** The engine knows only the interface: a node type has an id, says whether it may follow itself, says whether it can appear now, and builds an option from the run, the act, an optional `ref` and its RNG. The node then runs its own interaction (a fight, an Ink event, a shop) and hands the engine a **node result**: HP change, crowns change, story flags set or cleared (the combat node also reports the fight's tier, which opens the rewards and level-up steps). The engine applies it: HP stays between 0 and max HP; crowns never go below 0 (a result that would is a module bug and is refused). Event, combat and merchant modules arrive in later M2 steps.
 
 **Run state** is plain data (it survives a JSON round trip): seed, phase, the loadout picks and assembled player data (HP, max HP, cards, base stats, event tags, path rules), crowns (start at 0, a placeholder for balance), story flags, run limits, the current act, step and step count, the current offer, the node being played and the previous node's type. Node progress (a fight in progress, a position in an Ink story) is not part of it.
 - **Phases:** choosing a node → in a node → (after the boss) choosing a route → next act; or fallen; or ended (won or lost).
@@ -530,11 +531,32 @@ There is no map ahead: after each node, the next choices are drawn.
 - The player unit is built from the run: the loadout's item and path modifiers on the run's base stats, the run's current HP (it carries over), Shield full, the run's cards in order, powers and traits from the loadout. Statuses, cooldowns and power meters start fresh every fight.
 - Enemies are built from their files with ids in group order. The fight uses its own RNG stream from the run seed, the act's position, the act, the step and the option, so restarting the node replays the same fight for the same commands.
 - Commands: play a card (with a target when needed) or pass. Enemy turns run on their own until it is the player's turn again or the fight is over.
-- **Won:** the node result is the HP change (current HP − HP at the start). No crowns: fights pay through the rewards screen (M2 step 4).
+- **Won:** the node result is the HP change (current HP − HP at the start). No crowns directly: fights pay through the rewards screen.
 - **The player falls:** the run is told the player fell during the node (phase "fallen", the node stays current). If the player revives, the run goes back into the node with HP = half max HP rounded up, and the fight continues: Shield refilled, the player's statuses cleared, the enemies unchanged (HP, statuses, chosen intents, cooldowns), the player's cooldowns kept, and the player acts next. The turn in which the player fell is finished first: its unit's cooldowns tick, its Stun power drops by 1 and an enemy picks its next move (so the intent shown is the move it will use); statuses don't decay on that turn, so the enemies' statuses stay as they were. If the enemies had fallen too, the revived player has won the fight. If the tale ends, the run is lost.
 - The run is also saved after a revive. Resuming in the middle of a fight restarts it from the beginning, with the HP and revives the save holds.
-- Level-ups after elite fights and the rewards screen come with M2 step 4.
 - **Details:** enemy stats are integers ≥ 0; starting stacks are integers ≥ 1; move weights are integers ≥ 1 and move ids are lowercase (`[a-z][a-z0-9_]*`), unique within the enemy. An act has `groups` and `tiers` together or neither; `tiers` is non-empty; a group id appears once in `groups`. A fixed combat node needs a `ref` naming a group. The fight's max HP is the run's max HP (level-ups change it later). An unknown card id in the run is a bug (error).
+
+### Rewards, items and level-ups (decided 12 Oct 2026)
+**Rewards after a fight.** Every won fight opens a rewards screen: **3 options, pick 1** (or take nothing). An option is a **skill or Word** (learned), an **item** (weapon, armor or accessory, equipped) or a **crowns purse**.
+- The act's `rewards` table, by the fight's tier (`normal`, `hard`, `elite`, `boss`), gives the weights of the three kinds, the rarity weights (`common`, `uncommon`, `rare`) and the purse range. Elite and boss tables lean to better rarities.
+- Skills, Words, weapons, armor and accessories have a `rarity` (default `common`). An option of kind skill/item draws a rarity by weight among rarities that have something left, then a thing of that rarity with equal chance.
+- Never offered: a skill or Word the player holds, an item they wear, or the same thing twice on one screen. At most one crowns purse per screen. A kind with nothing left can't be drawn.
+- **Intelligence** adds options (+1 at 4, +2 at 6, from the final stat), and the extra options are always skills or Words.
+- **Rerolls** (3 per run, ad or Premium grant, limits in the core) redraw the whole screen. Each screen draw uses its own stream from the run seed, the node and the reroll number, so a reroll changes nothing else.
+- Crowns are the in-run money for merchants; Ink is counted at the end of the run.
+
+**Learning a skill or Word.** With fewer than 5 cards, the new card is added at the end. With 5, the player forgets one card (Strike included; forgetting is permanent for the run) or leaves the new one.
+
+**Items.** One item per slot. Taking an item replaces the one in its slot, which is lost (the screen shows the comparison before the pick).
+- Stats, powers and traits follow the new item at once. Max HP is recomputed (20 + 5 × Vitality + items' HP) and current HP moves by the same amount, staying between 1 and the new max. Shield is the items' Shield (it refills each fight anyway).
+- **Cards belong to their item:** the old weapon's Strike or the old accessory's granted skill leaves with it (if still held). The new item's card is then gained like any new skill (added if there is room, otherwise forget one or leave it).
+
+**Level-ups** come after each **elite** and **boss** fight, after its rewards.
+- The player is offered **2 stats**: one of the character's favoured stats, and one more from the other stats (the other favoured stat included); only stats whose base value is below the run cap of 7 can be offered. If no favoured stat is below the cap, both come from the rest. Fewer eligible stats give a shorter offer; none means no level-up.
+- Picking a favoured stat gives **+2**, any other **+1**, never above 7 (base value, before items and path). Drawn on its own stream; level-ups can't be rerolled.
+- **Vitality:** each point gained raises max HP by 5 and **current HP by the same amount**.
+
+**Order after a fight:** rewards, then learning (if a skill was taken with a full hand), then the level-up, then the next step (or, after the boss, the routes).
 
 ## Progression: Ink ✒
 Meta currency earned every run (win or lose) from steps cleared, bosses, lore found and first-time events. Never sold for money.
