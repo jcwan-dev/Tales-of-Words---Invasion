@@ -524,7 +524,7 @@ There is no map ahead: after each node, the next choices are drawn.
 **Act data:** `act.json` gains `groups` (the group ids this act draws from) and `tiers`: a list of step bands, each `{ "from": step, "weights": { "normal": 70, "hard": 30 } }`. A band applies from its step until the next band; the first band starts at step 1. Tier weights are non-negative integers; `boss` can't be drawn (boss groups only appear as fixed nodes).
 - Enemies don't scale with steps: their numbers come from their files, and later steps feel harder because the bands give more Hard and Elite fights.
 
-**Building a combat option** (drawn, not fixed): the tier is drawn by the current band's weights among tiers that have at least one group in the act; then one group of that tier is drawn with equal chance. The option's tag is the tier ("Combat · Hard"); its text is the group's text. A fixed combat node uses its `ref` as the group id, whatever its tier. The combat type can appear when the act has at least one drawable group.
+**Building a combat option** (drawn, not fixed): the tier is drawn by the current band's weights among tiers that have at least one group in the act; then one group of that tier is drawn with equal chance. The option's tag is the tier ("Combat · Hard"); its text is the group's text. A fixed combat node uses its `ref` as the group id, whatever its tier. The combat type can appear at a step when its band has a tier with weight above 0 and at least one non-boss group of that tier in the act. Node modules read content through the run's content pack (ADR 0011).
 
 **The fight:**
 - The player unit is built from the run: the loadout's item and path modifiers on the run's base stats, the run's current HP (it carries over), Shield full, the run's cards in order, powers and traits from the loadout. Statuses, cooldowns and power meters start fresh every fight.
@@ -534,6 +534,7 @@ There is no map ahead: after each node, the next choices are drawn.
 - **The player falls:** the run is told the player fell during the node (phase "fallen", the node stays current). If the player revives, the run goes back into the node with HP = half max HP rounded up, and the fight continues: Shield refilled, the player's statuses cleared, the enemies unchanged (HP, statuses, chosen intents, cooldowns), the player's cooldowns kept, and the player acts next. If the tale ends, the run is lost.
 - The run is also saved after a revive. Resuming in the middle of a fight restarts it from the beginning, with the HP and revives the save holds.
 - Level-ups after elite fights and the rewards screen come with M2 step 4.
+- **Details:** enemy stats are integers ≥ 0; starting stacks are integers ≥ 1; move weights are integers ≥ 1 and move ids are lowercase (`[a-z][a-z0-9_]*`), unique within the enemy. An act has `groups` and `tiers` together or neither; `tiers` is non-empty; a group id appears once in `groups`. A fixed combat node needs a `ref` naming a group. The fight's max HP is the run's max HP (level-ups change it later). An unknown card id in the run is a bug (error).
 
 ## Progression: Ink ✒
 Meta currency earned every run (win or lose) from steps cleared, bosses, lore found and first-time events. Never sold for money.
