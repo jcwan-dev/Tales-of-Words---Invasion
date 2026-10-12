@@ -3,8 +3,9 @@
  * Hand-written so the core keeps zero runtime dependencies. Runs in CI over
  * every content pack, and at load time in development builds.
  */
+import { POWER_IDS } from "../combat/power-ids.ts";
 import { isStatId, STAT_IDS } from "../model/stats.ts";
-import { STATUS_IDS, STATUS_TAGS, type ContentDef, type ContentKind, type ContentPack } from "./types.ts";
+import { STATUS_IDS, STATUS_TAGS, TRIGGER_EVENTS, type ContentDef, type ContentKind, type ContentPack } from "./types.ts";
 
 export interface ContentFile {
   readonly path: string;
@@ -78,6 +79,74 @@ class Checker {
       }
     });
   }
+  /** Optional pool tags: an array of non-empty strings. */
+  tags(o: Obj): void {
+    const v = o["tags"];
+    if (v === undefined) return;
+    if (!Array.isArray(v)) return this.fail("tags", "must be an array of strings");
+    v.forEach((t, i) => {
+      if (!isStr(t)) this.fail(`tags[${i}]`, "must be a non-empty string");
+    });
+  }
+  /** Optional powers: { <power id>: integer >= 0 } (spec: Powers). */
+  powers(o: Obj): void {
+    const v = o["powers"];
+    if (v === undefined) return;
+    if (!isObj(v)) return this.fail("powers", "must be an object of powers");
+    for (const [id, n] of Object.entries(v)) {
+      if (!(POWER_IDS as readonly string[]).includes(id)) this.fail(`powers.${id}`, `unknown power; expected one of ${POWER_IDS.join(", ")}`);
+      else if (!isNum(n) || !Number.isInteger(n) || n < 0) this.fail(`powers.${id}`, "must be an integer >= 0");
+    }
+  }
+  /** Optional traits: converts, slowDecay and decayFloors, as on a combat unit (spec: Synergy effects). */
+  traits(o: Obj): void {
+    const v = o["traits"];
+    if (v === undefined) return;
+    if (!isObj(v)) return this.fail("traits", "must be an object");
+    for (const key of Object.keys(v)) {
+      if (key !== "converts" && key !== "slowDecay" && key !== "decayFloors") this.fail(`traits.${key}`, "unknown trait; expected converts, slowDecay or decayFloors");
+    }
+    const isStatus = (x: unknown): boolean => (STATUS_IDS as readonly unknown[]).includes(x);
+    const converts = v["converts"];
+    if (converts !== undefined) {
+      if (!Array.isArray(converts)) this.fail("traits.converts", "must be an array");
+      else
+        converts.forEach((c, i) => {
+          const f = `traits.converts[${i}]`;
+          if (!isObj(c)) return this.fail(f, "must be { on, gain, stacks }");
+          if (!(TRIGGER_EVENTS as readonly unknown[]).includes(c["on"])) this.fail(`${f}.on`, `must be one of ${TRIGGER_EVENTS.join(", ")}`);
+          if (!isStatus(c["gain"])) this.fail(`${f}.gain`, "unknown status id");
+          const n = c["stacks"];
+          // A convert gives at least 1 stack (spec: Loadout assembly, Details).
+          if (!isNum(n) || !Number.isInteger(n) || n < 1) this.fail(`${f}.stacks`, "must be an integer >= 1");
+        });
+    }
+    const slow = v["slowDecay"];
+    if (slow !== undefined) {
+      if (!Array.isArray(slow)) this.fail("traits.slowDecay", "must be an array");
+      else
+        slow.forEach((e, i) => {
+          const f = `traits.slowDecay[${i}]`;
+          if (!isObj(e)) return this.fail(f, "must be { statuses, whose }");
+          const st = e["statuses"];
+          if (Array.isArray(st)) {
+            if (!st.every(isStatus)) this.fail(`${f}.statuses`, "unknown status id");
+          } else if (isObj(st)) {
+            if (!(STATUS_TAGS as readonly unknown[]).includes(st["tag"])) this.fail(`${f}.statuses.tag`, `unknown tag; expected one of ${STATUS_TAGS.join(", ")}`);
+          } else this.fail(`${f}.statuses`, "must be a list of status ids or { tag }");
+          if (e["whose"] !== "own" && e["whose"] !== "enemies") this.fail(`${f}.whose`, 'must be "own" or "enemies"');
+        });
+    }
+    const floors = v["decayFloors"];
+    if (floors !== undefined) {
+      if (!isObj(floors)) this.fail("traits.decayFloors", "must be an object of status floors");
+      else
+        for (const [id, n] of Object.entries(floors)) {
+          if (!isStatus(id)) this.fail(`traits.decayFloors.${id}`, "unknown status id");
+          else if (!isNum(n) || !Number.isInteger(n) || n < 0) this.fail(`traits.decayFloors.${id}`, "must be an integer >= 0");
+        }
+    }
+  }
   /** Optional hit count: an integer >= 1. */
   hits(o: Obj, field: string): void {
     const v = o["hits"];
@@ -133,6 +202,7 @@ class Checker {
 }
 
 function checkSkillFields(c: Checker, d: Obj): void {
+  c.tags(d);
   // Spec: only Strike has no cooldown, and Strike lives on the weapon, not here.
   c.num(d, "cooldown", { min: 1, integer: true });
   c.effects(d);
@@ -167,6 +237,8 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
     }
     case "weapon": {
       c.stats(d, "stats");
+      c.powers(d);
+      c.traits(d);
       c.num(d, "hp", { min: 0, optional: true, integer: true });
       c.num(d, "shield", { min: 0, optional: true, integer: true });
       const a = d["attack"];
@@ -182,12 +254,19 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
     case "armor":
     case "accessory":
       c.stats(d, "stats");
+      c.powers(d);
+      c.traits(d);
       c.num(d, "hp", { min: 0, optional: true, integer: true });
       c.num(d, "shield", { min: 0, optional: true, integer: true });
       if (kind === "accessory" && d["grants"] !== undefined && !isStr(d["grants"])) c.fail("grants", "must be a skill or word id");
       break;
     case "path":
       c.stats(d, "stats");
+      c.powers(d);
+      c.traits(d);
+      // Only items give HP and Shield (spec: Loadout assembly, Details).
+      if (d["hp"] !== undefined) c.fail("hp", "paths don't give HP; only items do");
+      if (d["shield"] !== undefined) c.fail("shield", "paths don't give Shield; only items do");
       break;
     case "word":
       // A Word is a skill with a glyph, a spoken form and a meaning.

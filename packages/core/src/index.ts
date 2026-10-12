@@ -2,6 +2,7 @@
 export * from "./model/stats.ts";
 export * from "./rng/rng.ts";
 export * from "./run/limits.ts";
+export * from "./run/loadout.ts";
 export * from "./content/types.ts";
 export * from "./content/validate.ts";
 

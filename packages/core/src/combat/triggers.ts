@@ -1,11 +1,11 @@
-import type { StatusId } from "../content/types.ts";
+import type { StatusId, TRIGGER_EVENTS } from "../content/types.ts";
 import { addStacks } from "./actions.ts";
 import type { CombatContext } from "./context.ts";
 import type { SlowDecay } from "./decay-rules.ts";
 import type { CombatUnit } from "./unit.ts";
 
 /** What can set off a convert trigger (spec: Synergy effects). */
-export type TriggerEvent = "deflect" | "attacked" | "dealtDamage" | "tookDamage";
+export type TriggerEvent = (typeof TRIGGER_EVENTS)[number];
 
 /** "When `on` happens to me, gain `stacks` of `gain`." The gain is the owner's own status: unresisted. */
 export interface ConvertTrigger {
