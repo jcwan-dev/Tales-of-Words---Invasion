@@ -3,6 +3,7 @@
   "id": "skill.dirty_trick",
   "name": "skill.dirty_trick.name",
   "cooldown": 1,
+  "tags": ["technique"],
   "effects": [
     {
       "type": "damage",

@@ -1,3 +1,5 @@
+import type { PowerId } from "../combat/power-ids.ts";
+import type { UnitTraits } from "../combat/triggers.ts";
 import type { StatId } from "../model/stats.ts";
 
 /** Status ids from the spec's status list. New statuses are added here and as modules (M1). */
@@ -65,6 +67,12 @@ export type Effect =
 
 export type StatBonus = Readonly<Partial<Record<StatId, number>>>;
 
+/** What can set off a convert trigger (spec: Synergy effects). Listed here so content validation can check it. */
+export const TRIGGER_EVENTS = ["deflect", "attacked", "dealtDamage", "tookDamage"] as const;
+
+/** Powers an item or path gives (spec: Powers; non-negative integers, added up at loadout assembly). */
+export type PowerBonus = Readonly<Partial<Record<PowerId, number>>>;
+
 interface Base {
   readonly id: string;
   /** Localisation key for the display name. */
@@ -81,6 +89,8 @@ interface ItemBase extends Base {
   readonly stats?: StatBonus;
   readonly hp?: number;
   readonly shield?: number;
+  readonly powers?: PowerBonus;
+  readonly traits?: UnitTraits;
 }
 
 export interface WeaponDef extends ItemBase {
@@ -108,6 +118,9 @@ export interface AccessoryDef extends ItemBase {
 export interface PathDef extends Base {
   readonly kind: "path";
   readonly stats?: StatBonus;
+  /** Paths change stats, rules, powers and traits; only items give HP and Shield (spec: Loadout assembly). */
+  readonly powers?: PowerBonus;
+  readonly traits?: UnitTraits;
   /** Rule tags the narrative layer checks, e.g. "no_dishonest_choices". */
   readonly rules?: readonly string[];
 }
@@ -118,6 +131,8 @@ export interface SkillDef extends Base {
   readonly cooldown: number;
   readonly effects: readonly Effect[];
   readonly upgrade?: string;
+  /** Pool tags, e.g. "technique" for the starting technique offer (spec: Loadout assembly). */
+  readonly tags?: readonly string[];
 }
 
 /** A Word is a skill with a glyph, a spoken form and a meaning (spec: Magic: words of power). */

@@ -3,6 +3,7 @@
   "id": "skill.cleave",
   "name": "skill.cleave.name",
   "cooldown": 1,
+  "tags": ["technique"],
   "effects": [
     {
       "type": "damage",

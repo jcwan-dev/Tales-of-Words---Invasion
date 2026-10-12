@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.7 (11 Oct 2026)
+**Version:** Draft 1.8 (12 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.8:** Loadout assembly: how stats, HP, Shield, powers, traits and starting cards are built from the five picks; stat floor 0; the run cap of 7 limits level-ups only; the starting technique offer (2 favoured + 1 any; more options with Intelligence 4 and 6); the companion's skill counts toward the 5 cards (fixes a contradiction).
 - **1.7:** No energy: one action per turn (Strike, one ready skill incl. the companion's, or pass); skill costs removed; cooldowns are the only limit. Cards in combat (target choice, multi-hit damage effects). Enemy moves: weighted, with cooldowns, one per turn, picked in advance so the intent is exact.
 - **1.6:** Consume effects can set a cap (eat up to N stacks). Slow decay names the statuses it slows (by id or tag) and whose (own or the other side's). New decay floors: a status never decays below a minimum (Glutton's Path).
 - **1.5:** Damage-over-time powers: Bleed power (every hit), Burn power and Poison power (once per attack) from any source; Bleed power replaces the old "+1 Bleeding on a physical hit". Synergies defined: Afflictions and stack-count scaling, consume (a normal hit, stacks kept if deflected), convert triggers with a recursion cap of 4, slow decay (enemy DoTs lose stacks every other round).
@@ -93,8 +94,28 @@ Every slot item is a data file with a list of modifiers. Most give a bonus; stro
 | Accessory | Flexible: a skill, stats, HP, Shield, or a mix | Ember Charm: the Word 火 Huo · Lodestone Ring: +1 Arcana, +1 Intelligence · Iron Locket: +8 HP · Glass Ward: +6 Shield |
 | Path | Way of living; stat changes and rule-bending modifiers that shape choices | The Sworn Road: +1 Wisdom; malus: locks dishonest choices |
 
+### Loadout assembly (decided 12 Oct 2026)
+The five picks build the player unit at the start of a run:
+- **Stats:** every stat starts at 2, the character's favoured stats at 3. Then the stat modifiers of the weapon, armor, accessory and path are added. A stat never goes below 0 (a malus that would take it lower stops at 0).
+- **Run cap:** level-ups can't raise a stat above 7, but items and paths can push it higher (Might 7 + Longsword = 8). The cap counts the stat without item and path bonuses.
+- **HP:** max HP = 20 + 5 × Vitality (after modifiers) + the HP the items give. A run starts at full HP.
+- **Shield:** max Shield = the sum of the items' Shield.
+- **Powers and traits:** items and paths can give powers (Bleed, Burn, Poison, Stun, Paralysis: they add up) and traits (converts, slow decay, decay floors). Several decay floors on the same status: the highest counts.
+- **Starting cards**, in this order: the weapon's Strike, the skill or Word the accessory grants (if any), then the starting technique. The companion's skill joins later and counts toward the 5.
+- **Starting technique offer:** before Act I the player picks 1 of 3 skills from the technique pool (skills tagged `technique`). Two of the three scale with one of the character's favoured stats, the third is drawn from the whole pool. Intelligence (after modifiers) adds options: 4 at Intelligence 4, 5 at Intelligence 6, the extra ones drawn from the whole pool. Offers never repeat a skill or offer one already held. If the pool is too small, the offer is shorter. Drawn on its own RNG stream, so the offer doesn't change combat or map randomness.
+- **Intelligence everywhere:** the same thresholds (+1 option at 4, +2 at 6) apply whenever the player is offered skills or Words.
+- **Story tags:** the character's event tags and the path's rules travel with the run for events.
+- **Details:**
+  - The floor of 0 applies once, after all modifiers are added (weapon −3 then path +2 on a stat of 2 gives 1).
+  - Modifiers, powers and traits are read in slot order: weapon, armor, accessory, path. Combined converts and slow-decay entries keep that order (converts fire in it).
+  - Only items give HP and Shield; paths change stats, rules, powers and traits.
+  - A skill "scales with" a stat when any scaling entry in any of its effects uses that stat.
+  - A technique the player already holds can't be picked (it is never offered).
+  - A convert gives at least 1 stack.
+  - Analyse is listed as a technique but needs effect types that don't exist yet (reveal intent); it joins the pool when they do.
+
 ### Companions
-Companions join during a run through events, one at a time. Each gives a **special skill** (its own slot, not counted against the skill limit) plus their own **event triggers**. They can leave or betray you depending on your choices and path. Placeholder examples:
+Companions join during a run through events, one at a time. Each gives a **special skill** (it counts toward the 5 cards; joining when you hold 5 works like learning a skill: forget one card or leave the companion's skill) plus their own **event triggers**. They can leave or betray you depending on your choices and path. Placeholder examples:
 
 | Companion | Special skill | Event triggers |
 |---|---|---|
@@ -144,8 +165,8 @@ Seffira, Viskan and Lina are not playable. They are legendary figures of the wor
 | Cleave | Starting technique, scroll | 1 | 6 damage | +2 per Might, +1 per Agility |
 | Dirty Trick | Starting technique, scroll | 1 | 3 physical damage, Enfeebled 2 | +2 per Cunning, +1 per Agility |
 | Analyse | Starting technique, scroll | 2 | Reveal intent; next hit +10% | +10% per Intelligence |
-| Mend | Scroll, merchant | 2 | Heal 4 | +3 per Wisdom |
-| Shore Up | Scroll, armorer | 2 | Restore 5 Shield | +2 per Vitality |
+| Mend | Starting technique, scroll, merchant | 2 | Heal 4 | +3 per Wisdom |
+| Shore Up | Starting technique, scroll, armorer | 2 | Restore 5 Shield | +2 per Vitality |
 | Bloodletter | Scroll, boss reward | 2 | 4 physical damage, Piercing, Bleeding 3 | +2 per Cunning |
 
 Worked example, Sellsword in the mockups: base 2 everywhere, Might and Vitality 3. Longsword +1 Might; Brigandine +1 Vitality, +10 HP, −1 Agility; Sworn Road +1 Wisdom. Result: Might 4, Vitality 4, Agility 1, Arcana 2, Wisdom 3, 50 HP, 8 Shield. Strike 12, Cleave 15, Huo 9, Mend 13.

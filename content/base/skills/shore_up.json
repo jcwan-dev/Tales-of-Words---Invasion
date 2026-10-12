@@ -3,6 +3,7 @@
   "id": "skill.shore_up",
   "name": "skill.shore_up.name",
   "cooldown": 2,
+  "tags": ["technique"],
   "effects": [
     {
       "type": "restoreShield",

@@ -3,6 +3,7 @@
   "id": "skill.mend",
   "name": "skill.mend.name",
   "cooldown": 2,
+  "tags": ["technique"],
   "effects": [
     {
       "type": "heal",
