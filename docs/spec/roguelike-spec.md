@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.10 (12 Oct 2026)
+**Version:** Draft 1.11 (12 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.11:** Rewards, rarity and level-ups (decided 12 Oct 2026): skills and Words have five rarities (grey 90%, green 95%, blue 100%, purple 110%, orange 125% of their stat scaling); everything starts grey unless the loadout raises it; rewards are 1 of 3 cards (skill or Word, item, crowns) with rarity weights by act and fight tier, elites give higher rarities; a held skill offered at a higher rarity upgrades it; the act boss reward always includes a relic; level-ups raise max and current HP together; swapping an item keeps the HP you were missing.
 - **1.10:** Combat node (decided 12 Oct 2026): enemies and enemy groups as data; groups tiered normal / hard / elite / boss; the act's tier weights shift by step band, no stat scaling; HP carries over, Shield refills, statuses and cooldowns reset each fight; a fall mid-fight can be revived and the fight continues (half HP, Shield full, the player's statuses cleared, the player acts next); fights give no crowns directly (crowns come from rewards, step 4).
 - **1.9:** Run map (decided 12 Oct 2026): no map ahead, choices drawn at each step; always 3 options with at least two node types, no merchant right after a merchant; step count rolled once per act from `act.json`; fixed nodes (mid-act event, boss) replace the choice at their step; routes after the boss by story flags; run state is plain data and quitting mid-node restarts that node with the same seed; revive at half HP rounded up.
 - **1.8:** Loadout assembly: how stats, HP, Shield, powers, traits and starting cards are built from the five picks; stat floor 0; the run cap of 7 limits level-ups only; the starting technique offer (2 favoured + 1 any; more options with Intelligence 4 and 6); the companion's skill counts toward the 5 cards (fixes a contradiction).
@@ -205,6 +206,13 @@ Example data:
   "upgrade": "skill.dirty_trick_plus"
 }
 ```
+
+### Rarity (decided 12 Oct 2026)
+- Every skill and Word card has a **rarity**: grey, green, blue, purple or orange (colours on the card edge).
+- Rarity scales what the card gets from **stats**: each stat-scaling term is multiplied by **90% (grey), 95% (green), 100% (blue), 110% (purple) or 125% (orange)**. Flat base amounts, afflictions and stack scaling, hits, statuses and cooldowns don't change. The final amount still rounds down. Content numbers are written at blue (100%). Example: Strike "4 damage +2 per Might" at Might 4 is 11 at grey (4 + 7.2), 12 at blue, 12 at purple (4 + 8.8), 14 at orange.
+- **Everything starts grey**, Strike included, unless the loadout raises it: items and paths (later companions) can name cards to start at a higher rarity (`startRarity`, e.g. the weapon's Strike at blue). Several sources: the highest counts.
+- **Upgrading:** when a reward, merchant or event offers a skill you hold at a **higher** rarity, taking it raises your card to that rarity in its slot (no forgetting needed). A held skill is never offered at the same or a lower rarity.
+- Items don't have rarities (for now). Enemy moves have none.
 
 ## Magic: words of power
 All magic follows the Tales of Words magic system: **a caster summons a word, and the word's power takes effect.** The mage opens a hand, shouts the word ("Huo!"), the written character for it (火, fire) appears in front of them, and the fire attack follows. The full system will be defined in the wiki; this section covers how the game represents it and should be updated as the wiki grows.
@@ -437,6 +445,29 @@ NodeRegistry.register(new MerchantNode())
 - **Events:** written in Ink (inkle), one file per event. Choices can check character triggers, companion triggers, any of the seven stats, character, path, items, companions or story flags. Locked options stay visible (greyed, with requirement).
 - **Combat:** turn-based, one action per turn: the weapon Strike, the companion skill or one of your skills; each skill card shows its current value and scaling stats. Enemies are data files (stats, weighted moves, a written intent line per move). Intent is a text hint, not a number. Bosses can switch move sets at HP thresholds.
 - **Merchant:** stock rolled from the act's loot table, prices scaled by act, spends crowns (in-run currency). Merchants can be recurring characters.
+
+### Rewards and level-ups (decided 12 Oct 2026)
+**After each won fight** the player picks **1 of 3 reward cards**, or leaves them all. A card is one of:
+- a **skill or Word** at a rarity (learn it: if you hold 5, forget one or leave it; or upgrade a held one, see Rarity);
+- an **item** for the weapon, armor or accessory slot (it replaces the current one, see below);
+- a **purse of crowns** (the in-run money for merchants).
+
+Intelligence adds options as for every skill offer (+1 card at 4, +2 at 6); the extra cards are skills or Words.
+
+**Act data** (`act.json`, `rewards`), per fight tier (normal, hard, elite, boss), all placeholders to tune with the simulator:
+- `kinds`: weights for skill, item and crowns cards;
+- `rarity`: weights for grey to orange. Act I leans grey to blue, the last act purple to orange; **elite fights draw from higher rarities** than normal and hard fights in the same act;
+- `crowns`: the purse range.
+
+**The act boss reward** is 3 cards as usual, and **one of them is always a relic**. A **relic** (content kind `relic`) is a passive held for the rest of the run with no slot limit: stats, powers, traits, starting statuses in every fight, HP or Shield (e.g. Pilgrim's Bell: start every fight Warded 1). A relic already held is never offered.
+
+**Drawing:** each card's kind is drawn by weight; then a skill or Word you don't hold (or hold at a lower rarity) at a drawn rarity, an item you don't have equipped, or a crowns amount. No two cards are the same skill or item. If a kind has nothing left to offer, that card is drawn from the other kinds. Rewards use their own RNG stream per node and reroll number.
+
+**Rerolls:** "Reroll" redraws all the cards of the screen (the relic card stays a relic). Up to 3 per run, each needing a grant (an ad, or instant with Premium), enforced in the core.
+
+**Item swaps:** the new item replaces the one in its slot; the old one is gone. Stats, max HP and Shield are recomputed; **the HP you were missing stays missing** (50/60 → new max 70 → 60/70), and HP never drops below 1 from a swap. A new weapon offers its Strike as a new skill (forget one or leave it, as in Skills); a new accessory offers its granted skill or Word the same way. Cards from the old item stay.
+
+**Level-ups** happen **after each elite fight** (after its reward) **and at the end of each act** (after the boss reward). The player is offered two stats, one of them always favoured, and raises one: a favoured stat +2, any other +1, never above the run cap of 7 (base stats). The favoured stat is drawn among the character's favoured stats below the cap; the other among the remaining stats below the cap. If only one stat can rise, it is the only option; if none can, there is no level-up. Raising Vitality raises **max HP and current HP** by 5 per point.
 
 ### Combat screen (portrait)
 Top to bottom:
