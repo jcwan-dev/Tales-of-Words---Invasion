@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.9 (12 Oct 2026)
+**Version:** Draft 1.10 (12 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.10:** Combat node (decided 12 Oct 2026): enemies and enemy groups as data; groups tiered normal / hard / elite / boss; the act's tier weights shift by step band, no stat scaling; HP carries over, Shield refills, statuses and cooldowns reset each fight; a fall mid-fight can be revived and the fight continues (half HP, Shield full, the player's statuses cleared, the player acts next); fights give no crowns directly (crowns come from rewards, step 4).
 - **1.9:** Run map (decided 12 Oct 2026): no map ahead, choices drawn at each step; always 3 options with at least two node types, no merchant right after a merchant; step count rolled once per act from `act.json`; fixed nodes (mid-act event, boss) replace the choice at their step; routes after the boss by story flags; run state is plain data and quitting mid-node restarts that node with the same seed; revive at half HP rounded up.
 - **1.8:** Loadout assembly: how stats, HP, Shield, powers, traits and starting cards are built from the five picks; stat floor 0; the run cap of 7 limits level-ups only; the starting technique offer (2 favoured + 1 any; more options with Intelligence 4 and 6); the companion's skill counts toward the 5 cards (fixes a contradiction).
 - **1.7:** No energy: one action per turn (Strike, one ready skill incl. the companion's, or pass); skill costs removed; cooldowns are the only limit. Cards in combat (target choice, multi-hit damage effects). Enemy moves: weighted, with cooldowns, one per turn, picked in advance so the intent is exact.
@@ -514,6 +515,25 @@ There is no map ahead: after each node, the next choices are drawn.
 - **Falling:** a node result that takes HP to 0 makes the player fall. They may revive (if the run limit allows it and a grant is given) at half max HP, rounded up, or let the tale end (the run is lost). Outside a fight, a revived player moves on as if the node had finished; how a revive continues a fight is decided with the combat node.
 - When the run ends (won or lost), no node is current.
 - After the last step's node, the run offers the open routes; choosing one starts that act at step 1 with a newly rolled step count. With no routes, the run is won.
+
+### Combat node (decided 12 Oct 2026)
+**Enemies** are data (content kind `enemy`, id `enemy.<name>`): a name key, stats (missing stats are 2), max HP, Shield, optional powers, traits and starting statuses, and a list of **moves** (each: id, weight > 0, cooldown ≥ 0, effects as in skills, an intent line key). Bosses switching move sets at HP thresholds come later.
+
+**Enemy groups** (content kind `group`, id `group.<name>`): 1 to 3 enemy ids (the same enemy may appear more than once), a **tier** (`normal`, `hard`, `elite` or `boss`) and a story text key (what the player reads on the choice screen).
+
+**Act data:** `act.json` gains `groups` (the group ids this act draws from) and `tiers`: a list of step bands, each `{ "from": step, "weights": { "normal": 70, "hard": 30 } }`. A band applies from its step until the next band; the first band starts at step 1. Tier weights are non-negative integers; `boss` can't be drawn (boss groups only appear as fixed nodes).
+- Enemies don't scale with steps: their numbers come from their files, and later steps feel harder because the bands give more Hard and Elite fights.
+
+**Building a combat option** (drawn, not fixed): the tier is drawn by the current band's weights among tiers that have at least one group in the act; then one group of that tier is drawn with equal chance. The option's tag is the tier ("Combat · Hard"); its text is the group's text. A fixed combat node uses its `ref` as the group id, whatever its tier. The combat type can appear when the act has at least one drawable group.
+
+**The fight:**
+- The player unit is built from the run: the loadout's item and path modifiers on the run's base stats, the run's current HP (it carries over), Shield full, the run's cards in order, powers and traits from the loadout. Statuses, cooldowns and power meters start fresh every fight.
+- Enemies are built from their files with ids in group order. The fight uses its own RNG stream from the run seed, the act's position, the act, the step and the option, so restarting the node replays the same fight for the same commands.
+- Commands: play a card (with a target when needed) or pass. Enemy turns run on their own until it is the player's turn again or the fight is over.
+- **Won:** the node result is the HP change (current HP − HP at the start). No crowns: fights pay through the rewards screen (M2 step 4).
+- **The player falls:** the run is told the player fell during the node (phase "fallen", the node stays current). If the player revives, the run goes back into the node with HP = half max HP rounded up, and the fight continues: Shield refilled, the player's statuses cleared, the enemies unchanged (HP, statuses, chosen intents, cooldowns), the player's cooldowns kept, and the player acts next. If the tale ends, the run is lost.
+- The run is also saved after a revive. Resuming in the middle of a fight restarts it from the beginning, with the HP and revives the save holds.
+- Level-ups after elite fights and the rewards screen come with M2 step 4.
 
 ## Progression: Ink ✒
 Meta currency earned every run (win or lose) from steps cleared, bosses, lore found and first-time events. Never sold for money.
