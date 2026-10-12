@@ -492,6 +492,8 @@ There is no map ahead: after each node, the next choices are drawn.
 - `fixed`: fixed nodes, each `{ "at", "type", "ref" }`. `at` is a step number from 1 to min − 1, or `"last"`. Exactly one fixed node is `"last"` (the boss). At most one fixed node per step. `ref` is the data the node module builds from (an event id, a boss group id); the module checks it.
 - `routes` (optional): the next acts, each `{ "to", "flags"?, "notFlags"? }`. `to` is an act id in the same pack. A route is open when every flag in `flags` is set and none in `notFlags` is. If an act has routes, at least one has no conditions, so a route is always open. An act with no routes ends the run in victory after its boss.
 - `first` (optional, `true`): the act a run starts in. At most one per pack.
+- `fixed` is required (every act has a boss). `routes: []` means no routes; a route with empty `flags` and `notFlags` has no conditions.
+- When a run starts, every node type named by any act in the pack (in `weights`, even at weight 0, or in `fixed`) must have a module, or the run doesn't start.
 
 **Choices at a step:**
 - A step with a fixed node offers only that node (the player confirms it; there is no choice). Weights and the rules below don't apply to it.
@@ -499,7 +501,8 @@ There is no map ahead: after each node, the next choices are drawn.
 - Options 1 and 2 are drawn by weight from those types (the same type may come twice). If they are the same type and another type can be drawn, option 3 is drawn by weight from the other types only; otherwise option 3 is drawn like the first two. So a step shows at least two types whenever two are possible.
 - Each option is built when it is offered (enemies, stock, its story text and its tag such as "Combat · Hard"), so what the player reads is what they get. Two options of the same type are different nodes.
 - If no type can be drawn at a step, the content is broken: the run engine reports an error rather than skip the step.
-- Randomness: the step count, each step's draw and each option's build use their own streams from the run seed, the act and the step (and the option's position), so nothing else in the run shifts them.
+- Randomness: the step count, each step's draw and each option's build use their own streams from the run seed, the act's position in the run (1st, 2nd, …), the act and the step (and the option's position), so nothing else in the run shifts them, and an act visited twice is drawn afresh.
+- Options are shown in the order drawn (option 3 last).
 
 **Node modules.** The engine knows only the interface: a node type has an id, says whether it may follow itself, says whether it can appear now, and builds an option from the run, the act, an optional `ref` and its RNG. The node then runs its own interaction (a fight, an Ink event, a shop) and hands the engine a **node result**: HP change, crowns change, story flags set or cleared (more fields come with rewards and learning). The engine applies it: HP stays between 0 and max HP; crowns never go below 0 (a result that would is a module bug and is refused). Event, combat and merchant modules arrive in later M2 steps.
 
@@ -508,6 +511,7 @@ There is no map ahead: after each node, the next choices are drawn.
 - **Pausing:** the run is saved between nodes and when a node is entered. Quitting in the middle of a node and resuming restarts that node from its beginning: it was built from its own seed, so the same enemies, stock and text come back.
 - **Commands in, events out:** choosing an option, completing a node, choosing a route, reviving and ending the run are commands. A command that doesn't fit the phase, or names an option or route that doesn't exist, is refused and changes nothing.
 - **Falling:** a node result that takes HP to 0 makes the player fall. They may revive (if the run limit allows it and a grant is given) at half max HP, rounded up, or let the tale end (the run is lost). Outside a fight, a revived player moves on as if the node had finished; how a revive continues a fight is decided with the combat node.
+- When the run ends (won or lost), no node is current.
 - After the last step's node, the run offers the open routes; choosing one starts that act at step 1 with a newly rolled step count. With no routes, the run is won.
 
 ## Progression: Ink ✒
