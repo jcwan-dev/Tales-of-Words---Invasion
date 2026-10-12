@@ -1,5 +1,6 @@
 import type { PowerId } from "../combat/power-ids.ts";
 import type { UnitTraits } from "../combat/triggers.ts";
+import type { Rarity } from "../model/rarity.ts";
 import type { StatId } from "../model/stats.ts";
 
 /** Status ids from the spec's status list. New statuses are added here and as modules (M1). */
@@ -85,12 +86,19 @@ export interface CharacterDef extends Base {
   readonly eventTags: readonly string[];
 }
 
+/**
+ * Cards to start at a higher rarity (spec: Rarity): card id → rarity. Keys are a skill or Word id, or a weapon id
+ * (that weapon's Strike). Several sources: the highest counts.
+ */
+export type StartRarity = Readonly<Record<string, Rarity>>;
+
 interface ItemBase extends Base {
   readonly stats?: StatBonus;
   readonly hp?: number;
   readonly shield?: number;
   readonly powers?: PowerBonus;
   readonly traits?: UnitTraits;
+  readonly startRarity?: StartRarity;
 }
 
 export interface WeaponDef extends ItemBase {
@@ -123,6 +131,25 @@ export interface PathDef extends Base {
   readonly traits?: UnitTraits;
   /** Rule tags the narrative layer checks, e.g. "no_dishonest_choices". */
   readonly rules?: readonly string[];
+  readonly startRarity?: StartRarity;
+}
+
+/**
+ * A relic (spec: Rewards and level-ups): a passive held for the rest of the run, with no slot limit. Its stats,
+ * powers and traits combine as an item's (after the path, in the order relics were gained); its HP is part of max
+ * HP, its Shield of max Shield, and its statuses are starting stacks in every fight.
+ */
+export interface RelicDef extends Base {
+  readonly kind: "relic";
+  readonly stats?: StatBonus;
+  /** Integer >= 0. */
+  readonly hp?: number;
+  /** Integer >= 0. */
+  readonly shield?: number;
+  readonly powers?: PowerBonus;
+  readonly traits?: UnitTraits;
+  /** Stacks at the start of every fight (integers >= 1). */
+  readonly statuses?: Readonly<Partial<Record<StatusId, number>>>;
 }
 
 export interface SkillDef extends Base {
@@ -233,7 +260,18 @@ export interface ActDef extends Base {
   readonly tiers?: readonly TierBand[];
 }
 
-export type ContentDef = CharacterDef | WeaponDef | ArmorDef | AccessoryDef | PathDef | SkillDef | WordDef | ActDef | EnemyDef | GroupDef;
+export type ContentDef =
+  | CharacterDef
+  | WeaponDef
+  | ArmorDef
+  | AccessoryDef
+  | PathDef
+  | SkillDef
+  | WordDef
+  | ActDef
+  | EnemyDef
+  | GroupDef
+  | RelicDef;
 export type ContentKind = ContentDef["kind"];
 
 export interface ContentPack {

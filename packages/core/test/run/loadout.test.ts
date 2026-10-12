@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assemblePlayer,
   cardFromSkill,
+  cardWithRarity,
   createRng,
   createUnit,
   intelligenceBonusOptions,
@@ -65,7 +66,11 @@ import {
 //   Intelligence everywhere: +1 option at 4, +2 at 6.
 //   Story tags: the character's event tags and the path's rules travel with the run.
 // Worked example ("Sample skills"): Sellsword, Longsword, Brigandine, Sworn Road: Might 4, Vitality 4, Agility 1,
-//   Arcana 2, Wisdom 3, 50 HP, 8 Shield. Strike 12, Cleave 15, Huo 9, Mend 13.
+//   Arcana 2, Wisdom 3, 50 HP, 8 Shield. At blue (the content numbers): Strike 12, Cleave 15, Huo 9, Mend 13. At the
+//   start of a run everything is grey: Strike 11, Cleave 14, Huo 8, Mend 12.
+// Spec Draft 1.11, "Rarity": "Everything starts grey, Strike included, unless the loadout raises it". "The starting
+//   unit from loadout assembly already carries the starting rarities." Brief M2.4a, clarification 1: assemblePlayer
+//   applies the starting rarities (grey, raised by startRarity). The final amount rounds down.
 // Brief M2.1: the Strike card id is the weapon id or "<weapon id>.strike"; skills and Words use their content id.
 //   Base pack tags Cleave, Dirty Trick, Mend and Shore Up with `technique`.
 // Spec "Loadout assembly", Details: the floor of 0 applies once, after all modifiers (weapon −3 then path +2 on a
@@ -82,13 +87,16 @@ const stats = (over: Partial<Record<StatId, number>>): StatBlock => {
   return block;
 };
 
-/** The number a card shows: amount + per × stat for every stat term (spec: Sample skills, worked example). */
+/** The number a card shows: amount + per × stat for every stat term, rounded down (spec: Sample skills, Rarity). */
 const shown = (effect: Effect | undefined, s: StatBlock): number => {
   if (effect === undefined || !("amount" in effect)) throw new Error("effect has no amount");
   let n = effect.amount;
   for (const term of effect.scaling ?? []) if ("stat" in term) n += term.per * s[term.stat];
-  return n;
+  return Math.floor(n + 1e-9);
 };
+
+/** A content skill or Word card at the starting rarity (grey: nothing in these loadouts raises it). */
+const greyCard = (def: SkillDef | WordDef): CardSpec => cardWithRarity(cardFromSkill(def), "grey");
 
 const def = <K extends string>(pack: ContentPack, id: string, kinds: readonly K[]) => {
   const d = pack.byId.get(id);
@@ -102,7 +110,8 @@ const expectStrike = (card: CardSpec | undefined, weapon: WeaponDef): void => {
   expect(card).toBeDefined();
   expect([weapon.id, `${weapon.id}.strike`]).toContain(card?.id);
   expect(card?.cooldown).toBe(0);
-  expect(card?.effects).toEqual(strikeCard(weapon).effects);
+  // Starting rarity: grey (no startRarity in these loadouts).
+  expect(card?.effects).toEqual(cardWithRarity(strikeCard(weapon), "grey").effects);
 };
 
 const power = (unit: Record<string, unknown>, id: PowerId): number => {
@@ -153,20 +162,29 @@ describe("loadout assembly: the spec's worked example (Sellsword)", () => {
     const cards = p.unit.cards ?? [];
     expect(cards).toHaveLength(3);
     expectStrike(cards[0], weaponOf(pack, "weapon.notched_longsword"));
-    expect(cards[1]).toEqual(cardFromSkill(skillOf(pack, "word.huo")));
-    expect(cards[2]).toEqual(cardFromSkill(skillOf(pack, "skill.cleave")));
+    expect(cards[1]).toEqual(greyCard(skillOf(pack, "word.huo")));
+    expect(cards[2]).toEqual(greyCard(skillOf(pack, "skill.cleave")));
   });
 
-  it("the cards show the spec's numbers: Strike 12, Huo 9, Cleave 15, Mend 13", () => {
+  it("at blue (the content cards), the spec's numbers: Strike 12, Huo 9, Cleave 15, Mend 13", () => {
+    const s = assemblePlayer(pack, sellsword, "skill.cleave").unit.stats as StatBlock;
+    const blue = (c: CardSpec): CardSpec => cardWithRarity(c, "blue");
+    expect(shown(blue(strikeCard(weaponOf(pack, "weapon.notched_longsword"))).effects[0], s)).toBe(12);
+    expect(shown(blue(cardFromSkill(skillOf(pack, "word.huo"))).effects[0], s)).toBe(9);
+    expect(shown(blue(cardFromSkill(skillOf(pack, "skill.cleave"))).effects[0], s)).toBe(15);
+    expect(shown(blue(cardFromSkill(skillOf(pack, "skill.mend"))).effects[0], s)).toBe(13);
+  });
+
+  it("at the start of a run everything is grey: Strike 11, Huo 8, Cleave 14, Mend 12", () => {
     const cleave = assemblePlayer(pack, sellsword, "skill.cleave");
     const s = cleave.unit.stats as StatBlock;
     const cards = cleave.unit.cards ?? [];
-    expect(shown(cards[0]?.effects[0], s)).toBe(12);
-    expect(shown(cards[1]?.effects[0], s)).toBe(9);
-    expect(shown(cards[2]?.effects[0], s)).toBe(15);
+    expect(shown(cards[0]?.effects[0], s)).toBe(11);
+    expect(shown(cards[1]?.effects[0], s)).toBe(8);
+    expect(shown(cards[2]?.effects[0], s)).toBe(14);
     const mend = assemblePlayer(pack, sellsword, "skill.mend");
     expect(mend.unit.cards?.[2]?.id).toBe("skill.mend");
-    expect(shown(mend.unit.cards?.[2]?.effects[0], mend.unit.stats as StatBlock)).toBe(13);
+    expect(shown(mend.unit.cards?.[2]?.effects[0], mend.unit.stats as StatBlock)).toBe(12);
   });
 
   it("without a technique: Strike then Huo", () => {
@@ -386,8 +404,8 @@ describe("loadout assembly: starting cards", () => {
     const cards = p.unit.cards ?? [];
     expect(cards.map((c) => c.id).slice(1)).toEqual(["skill.t_might_a", "word.t_arc"]);
     expectStrike(cards[0], weaponOf(pack, "weapon.club"));
-    expect(cards[1]).toEqual(cardFromSkill(skillOf(pack, "skill.t_might_a")));
-    expect(cards[2]).toEqual(cardFromSkill(skillOf(pack, "word.t_arc")));
+    expect(cards[1]).toEqual(greyCard(skillOf(pack, "skill.t_might_a")));
+    expect(cards[2]).toEqual(greyCard(skillOf(pack, "word.t_arc")));
   });
 
   it("no grant and no technique: Strike only", () => {

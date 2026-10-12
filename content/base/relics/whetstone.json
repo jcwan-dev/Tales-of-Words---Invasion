@@ -1,0 +1,8 @@
+{
+  "kind": "relic",
+  "id": "relic.whetstone",
+  "name": "relic.whetstone.name",
+  "stats": {
+    "might": 1
+  }
+}

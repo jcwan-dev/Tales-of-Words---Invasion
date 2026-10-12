@@ -41,9 +41,20 @@ export function baseValue(amount: number, scaling: readonly Scaling[] | undefine
   return value;
 }
 
-/** Step 2 maths: floor(base × (1 + 0.25 × steps)) in integers, never below 0. */
+/**
+ * Tolerance for rounding amounts down (spec: Rarity, "computed exactly"). Rarity makes stat terms fractional
+ * (6 × 0.95 = 5.7), and 4 + 5.7 × 10 may come out a hair under 61 in floating point. Content numbers are whole or
+ * short decimals, rarity factors are twentieths and modifier steps quarters, so no genuine amount lies this close
+ * below a whole number: the tolerance only absorbs floating-point error. No allocation (code rule 6).
+ */
+const AMOUNT_TOLERANCE = 1e-9;
+
+/** Rounds an amount down, absorbing floating-point error (damage, heals and Shield alike). */
+export const floorAmount = (value: number): number => Math.floor(value + AMOUNT_TOLERANCE);
+
+/** Step 2 maths: floor(base × (1 + 0.25 × steps)), never below 0. */
 const applyModifier = (base: number, steps: number): number => {
-  const value = Math.floor((base * (MODIFIER_STEPS_PER_WHOLE + steps)) / MODIFIER_STEPS_PER_WHOLE);
+  const value = floorAmount((base * (MODIFIER_STEPS_PER_WHOLE + steps)) / MODIFIER_STEPS_PER_WHOLE);
   return value > 0 ? value : 0;
 };
 

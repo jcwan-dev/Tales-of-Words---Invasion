@@ -37,6 +37,9 @@ import f33 from "../../../../content/base/groups/marsh_warden.json" with { type:
 import f34 from "../../../../content/base/groups/reed_ambush.json" with { type: "json" };
 import f35 from "../../../../content/base/groups/stalker_and_hound.json" with { type: "json" };
 import f36 from "../../../../content/base/groups/warden_and_hound.json" with { type: "json" };
+import f37 from "../../../../content/base/relics/iron_heart.json" with { type: "json" };
+import f38 from "../../../../content/base/relics/pilgrims_bell.json" with { type: "json" };
+import f39 from "../../../../content/base/relics/whetstone.json" with { type: "json" };
 
 export const BASE_FILES: readonly ContentFile[] = [
   { path: "base/accessories/ember_charm.json", data: f1 },
@@ -75,6 +78,9 @@ export const BASE_FILES: readonly ContentFile[] = [
   { path: "base/groups/reed_ambush.json", data: f34 },
   { path: "base/groups/stalker_and_hound.json", data: f35 },
   { path: "base/groups/warden_and_hound.json", data: f36 },
+  { path: "base/relics/iron_heart.json", data: f37 },
+  { path: "base/relics/pilgrims_bell.json", data: f38 },
+  { path: "base/relics/whetstone.json", data: f39 },
 ];
 
 /** The validated base pack; throws with the issues if it doesn't validate. */

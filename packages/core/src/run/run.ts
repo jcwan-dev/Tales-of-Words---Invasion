@@ -9,6 +9,7 @@
  * step (and the option's position), so nothing else in the run shifts it and an act visited twice draws afresh.
  */
 import type { ActDef, ContentPack, FixedNodeDef } from "../content/types.ts";
+import type { Rarity } from "../model/rarity.ts";
 import type { StatBlock } from "../model/stats.ts";
 import type { NodeRegistry } from "../nodes/registry.ts";
 import type { JsonValue, NodeType } from "../nodes/types.ts";
@@ -39,6 +40,9 @@ export interface RunPlayer {
   maxHp: number;
   /** Card ids in order (the weapon's Strike has the weapon's id). */
   cards: string[];
+  /** Card id → rarity, for every held card and only those (spec: Rarity). A held card with no entry counts as grey. */
+  rarities: Record<string, Rarity>;
+  /** 2 / favoured 3, raised by level-ups only (run cap 7); item, path and relic modifiers are added on top. */
   baseStats: StatBlock;
   eventTags: string[];
   rules: string[];
@@ -51,6 +55,8 @@ export interface RunState {
   technique: string | null;
   player: RunPlayer;
   crowns: number;
+  /** Relic ids, in the order gained, no duplicates (spec: Rewards and level-ups). */
+  relics: string[];
   /** Story flags: a set, in insertion order, no duplicates. */
   flags: string[];
   limits: RunLimitsState;
@@ -252,11 +258,13 @@ export function startRun(ctx: RunContext, init: { seed: string; picks: LoadoutPi
       hp: p.unit.maxHp,
       maxHp: p.unit.maxHp,
       cards: (p.unit.cards ?? []).map((c) => c.id),
+      rarities: { ...p.rarities },
       baseStats: { ...p.baseStats },
       eventTags: [...p.eventTags],
       rules: [...p.rules],
     },
     crowns: 0,
+    relics: [],
     flags: [],
     limits: initialRunLimits(),
     act: first.id,

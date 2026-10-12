@@ -15,5 +15,8 @@
         "per": 2
       }
     ]
+  },
+  "startRarity": {
+    "weapon.twin_knives": "blue"
   }
 }
