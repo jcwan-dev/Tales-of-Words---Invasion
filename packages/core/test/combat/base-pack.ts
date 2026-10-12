@@ -24,6 +24,19 @@ import f20 from "../../../../content/base/words/huo.json" with { type: "json" };
 import f21 from "../../../../content/base/words/lei.json" with { type: "json" };
 import f22 from "../../../../content/base/words/yu.json" with { type: "json" };
 import f23 from "../../../../content/base/acts/act1_drowned_marches/act.json" with { type: "json" };
+import f24 from "../../../../content/base/enemies/bog_hound.json" with { type: "json" };
+import f25 from "../../../../content/base/enemies/drowned_soldier.json" with { type: "json" };
+import f26 from "../../../../content/base/enemies/hollow_abbot.json" with { type: "json" };
+import f27 from "../../../../content/base/enemies/marsh_warden.json" with { type: "json" };
+import f28 from "../../../../content/base/enemies/reed_stalker.json" with { type: "json" };
+import f29 from "../../../../content/base/groups/act1_boss.json" with { type: "json" };
+import f30 from "../../../../content/base/groups/drowned_patrol.json" with { type: "json" };
+import f31 from "../../../../content/base/groups/drowned_squad.json" with { type: "json" };
+import f32 from "../../../../content/base/groups/hound_pair.json" with { type: "json" };
+import f33 from "../../../../content/base/groups/marsh_warden.json" with { type: "json" };
+import f34 from "../../../../content/base/groups/reed_ambush.json" with { type: "json" };
+import f35 from "../../../../content/base/groups/stalker_and_hound.json" with { type: "json" };
+import f36 from "../../../../content/base/groups/warden_and_hound.json" with { type: "json" };
 
 export const BASE_FILES: readonly ContentFile[] = [
   { path: "base/accessories/ember_charm.json", data: f1 },
@@ -49,6 +62,19 @@ export const BASE_FILES: readonly ContentFile[] = [
   { path: "base/words/lei.json", data: f21 },
   { path: "base/words/yu.json", data: f22 },
   { path: "base/acts/act1_drowned_marches/act.json", data: f23 },
+  { path: "base/enemies/bog_hound.json", data: f24 },
+  { path: "base/enemies/drowned_soldier.json", data: f25 },
+  { path: "base/enemies/hollow_abbot.json", data: f26 },
+  { path: "base/enemies/marsh_warden.json", data: f27 },
+  { path: "base/enemies/reed_stalker.json", data: f28 },
+  { path: "base/groups/act1_boss.json", data: f29 },
+  { path: "base/groups/drowned_patrol.json", data: f30 },
+  { path: "base/groups/drowned_squad.json", data: f31 },
+  { path: "base/groups/hound_pair.json", data: f32 },
+  { path: "base/groups/marsh_warden.json", data: f33 },
+  { path: "base/groups/reed_ambush.json", data: f34 },
+  { path: "base/groups/stalker_and_hound.json", data: f35 },
+  { path: "base/groups/warden_and_hound.json", data: f36 },
 ];
 
 /** The validated base pack; throws with the issues if it doesn't validate. */

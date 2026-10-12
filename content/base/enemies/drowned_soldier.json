@@ -1,0 +1,53 @@
+{
+  "kind": "enemy",
+  "id": "enemy.drowned_soldier",
+  "name": "enemy.drowned_soldier.name",
+  "stats": {
+    "might": 3,
+    "agility": 1
+  },
+  "hp": 30,
+  "shield": 4,
+  "moves": [
+    {
+      "id": "rusted_blade",
+      "weight": 3,
+      "cooldown": 0,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "physical",
+          "amount": 5,
+          "target": "enemy",
+          "scaling": [
+            {
+              "stat": "might",
+              "per": 1
+            }
+          ]
+        }
+      ],
+      "intent": "enemy.drowned_soldier.rusted_blade.intent"
+    },
+    {
+      "id": "shield_bash",
+      "weight": 1,
+      "cooldown": 2,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "physical",
+          "amount": 3,
+          "target": "enemy"
+        },
+        {
+          "type": "status",
+          "status": "enfeebled",
+          "stacks": 1,
+          "target": "enemy"
+        }
+      ],
+      "intent": "enemy.drowned_soldier.shield_bash.intent"
+    }
+  ]
+}

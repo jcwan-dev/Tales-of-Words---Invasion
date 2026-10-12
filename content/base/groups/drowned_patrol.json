@@ -1,0 +1,10 @@
+{
+  "kind": "group",
+  "id": "group.drowned_patrol",
+  "name": "group.drowned_patrol.name",
+  "tier": "normal",
+  "enemies": [
+    "enemy.drowned_soldier"
+  ],
+  "text": "group.drowned_patrol.text"
+}

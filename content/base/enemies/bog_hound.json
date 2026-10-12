@@ -1,0 +1,39 @@
+{
+  "kind": "enemy",
+  "id": "enemy.bog_hound",
+  "name": "enemy.bog_hound.name",
+  "stats": {
+    "agility": 3
+  },
+  "hp": 16,
+  "moves": [
+    {
+      "id": "bite",
+      "weight": 3,
+      "cooldown": 0,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "physical",
+          "amount": 5,
+          "target": "enemy"
+        }
+      ],
+      "intent": "enemy.bog_hound.bite.intent"
+    },
+    {
+      "id": "howl",
+      "weight": 1,
+      "cooldown": 3,
+      "effects": [
+        {
+          "type": "status",
+          "status": "emboldened",
+          "stacks": 2,
+          "target": "self"
+        }
+      ],
+      "intent": "enemy.bog_hound.howl.intent"
+    }
+  ]
+}

@@ -69,6 +69,11 @@ export interface RunState {
   previousType: string | null;
   /** The open routes, as act ids (phase "route"); [] otherwise. */
   routes: string[];
+  /**
+   * True while the player has fallen in the middle of the current node (fallInNode, phase "fallen"): a revive
+   * then goes back into the node instead of moving on (spec: Combat node). False otherwise.
+   */
+  fellInNode: boolean;
 }
 
 /** What a node hands back when it finishes. Integers only. */
@@ -150,9 +155,9 @@ const isIndex = (i: number, length: number): boolean => Number.isInteger(i) && i
 // ---------------------------------------------------------------------------------------------
 // Steps, options and acts
 
-function buildOption(run: RunState, act: ActDef, type: NodeType, ref: string | null, fixed: boolean, index: number): NodeOption {
+function buildOption(ctx: RunContext, run: RunState, act: ActDef, type: NodeType, ref: string | null, fixed: boolean, index: number): NodeOption {
   const rng = new RngStreams(run.seed).derive("node", run.actNumber, act.id, run.step, index);
-  const built = type.build({ run, act, ref, rng });
+  const built = type.build({ run, act, pack: ctx.pack, fixed, ref, rng });
   return { type: type.id, ref, fixed, text: built.text, tag: built.tag, data: built.data };
 }
 
@@ -163,7 +168,7 @@ function drawable(ctx: RunContext, run: RunState, act: ActDef): WeightedType[] {
     if (weight <= 0) continue;
     const type = nodeType(ctx, id);
     if (!type.mayFollowItself && run.previousType === id) continue;
-    if (!type.canAppear(run, act)) continue;
+    if (!type.canAppear(run, act, ctx.pack)) continue;
     out.push({ type: id, weight });
   }
   return out;
@@ -177,14 +182,14 @@ function offerStep(ctx: RunContext, run: RunState, act: ActDef, events: RunEvent
   const fixed = fixedAt(act, run.step, run.steps);
   let offer: NodeOption[];
   if (fixed !== undefined) {
-    offer = [buildOption(run, act, nodeType(ctx, fixed.type), fixed.ref ?? null, true, 0)];
+    offer = [buildOption(ctx, run, act, nodeType(ctx, fixed.type), fixed.ref ?? null, true, 0)];
   } else {
     const types = drawable(ctx, run, act);
     if (types.length === 0) {
       throw new Error(`run: no node type can be drawn at step ${run.step} of "${act.id}" (previous: ${run.previousType ?? "none"})`);
     }
     const rng = new RngStreams(run.seed).derive("map", run.actNumber, act.id, run.step);
-    offer = drawOptionTypes(rng, types).map((id, i) => buildOption(run, act, nodeType(ctx, id), null, false, i));
+    offer = drawOptionTypes(rng, types).map((id, i) => buildOption(ctx, run, act, nodeType(ctx, id), null, false, i));
   }
   run.offer = offer;
   events.push({ type: "OptionsOffered", act: act.id, step: run.step, options: offer.map((o) => ({ type: o.type, fixed: o.fixed })) });
@@ -262,6 +267,7 @@ export function startRun(ctx: RunContext, init: { seed: string; picks: LoadoutPi
     node: null,
     previousType: null,
     routes: [],
+    fellInNode: false,
   };
   const events: RunEvent[] = [{ type: "RunStarted", seed: init.seed }];
   enterAct(ctx, run, first, events);
@@ -308,7 +314,23 @@ export function completeNode(ctx: RunContext, run: RunState, result: NodeResult)
   return accept(events);
 }
 
-/** Revives a fallen player at half max HP, rounded up, within the run limit; then moves on as if the node had finished. */
+/**
+ * The player falls in the middle of the current node (a lost fight): HP 0, phase "fallen", the node stays current
+ * and the run remembers the fall was mid-node, so a revive goes back into it (spec: Combat node).
+ */
+export function fallInNode(run: RunState): CommandResult {
+  if (run.phase !== "inNode" || run.node === null) return refuse("wrong_phase");
+  run.player.hp = 0;
+  run.phase = "fallen";
+  run.fellInNode = true;
+  return accept([{ type: "PlayerFell" }]);
+}
+
+/**
+ * Revives a fallen player at half max HP, rounded up, within the run limit. After a fall in the middle of a node
+ * (fallInNode) the run goes back into that node (phase "inNode"; the node's module continues it); otherwise it
+ * moves on as if the node had finished.
+ */
 export function revive(ctx: RunContext, run: RunState, grant: Grant): CommandResult {
   if (run.phase !== "fallen") return refuse("wrong_phase");
   const res = consume(run.limits, "revive", grant);
@@ -316,7 +338,13 @@ export function revive(ctx: RunContext, run: RunState, grant: Grant): CommandRes
   run.limits = res.state;
   run.player.hp = Math.ceil(run.player.maxHp / 2);
   const events: RunEvent[] = [{ type: "Revived", hp: run.player.hp }];
-  advance(ctx, run, events);
+  if (run.fellInNode && run.node !== null) {
+    run.fellInNode = false;
+    run.phase = "inNode";
+  } else {
+    run.fellInNode = false;
+    advance(ctx, run, events);
+  }
   return accept(events);
 }
 
@@ -325,6 +353,7 @@ export function endRun(run: RunState): CommandResult {
   if (run.phase !== "fallen") return refuse("wrong_phase");
   run.phase = "lost";
   run.node = null;
+  run.fellInNode = false;
   return accept([{ type: "RunEnded", result: "lost" }]);
 }
 

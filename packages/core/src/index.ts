@@ -5,8 +5,11 @@ export * from "./run/limits.ts";
 export * from "./run/loadout.ts";
 export * from "./run/draw.ts";
 export * from "./run/run.ts";
+export * from "./run/player.ts";
+export * from "./run/fight.ts";
 export * from "./nodes/types.ts";
 export * from "./nodes/registry.ts";
+export * from "./nodes/combat.ts";
 export * from "./content/types.ts";
 export * from "./content/validate.ts";
 

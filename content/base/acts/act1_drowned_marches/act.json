@@ -8,5 +8,19 @@
   "fixed": [
     { "at": 6, "type": "event", "ref": "event.act1_crossroads" },
     { "at": "last", "type": "combat", "ref": "group.act1_boss" }
+  ],
+  "groups": [
+    "group.drowned_patrol",
+    "group.reed_ambush",
+    "group.hound_pair",
+    "group.drowned_squad",
+    "group.stalker_and_hound",
+    "group.marsh_warden",
+    "group.warden_and_hound"
+  ],
+  "tiers": [
+    { "from": 1, "weights": { "normal": 80, "hard": 20 } },
+    { "from": 5, "weights": { "normal": 50, "hard": 35, "elite": 15 } },
+    { "from": 9, "weights": { "normal": 30, "hard": 45, "elite": 25 } }
   ]
 }

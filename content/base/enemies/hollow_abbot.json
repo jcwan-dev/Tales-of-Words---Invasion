@@ -1,0 +1,88 @@
+{
+  "kind": "enemy",
+  "id": "enemy.hollow_abbot",
+  "name": "enemy.hollow_abbot.name",
+  "stats": {
+    "arcana": 4,
+    "wisdom": 4,
+    "vitality": 4
+  },
+  "hp": 64,
+  "shield": 10,
+  "statuses": {
+    "warded": 1
+  },
+  "moves": [
+    {
+      "id": "toll",
+      "weight": 3,
+      "cooldown": 0,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "arcane",
+          "amount": 4,
+          "target": "enemy",
+          "scaling": [
+            {
+              "stat": "arcana",
+              "per": 1
+            }
+          ]
+        }
+      ],
+      "intent": "enemy.hollow_abbot.toll.intent"
+    },
+    {
+      "id": "drowning_hymn",
+      "weight": 2,
+      "cooldown": 2,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "arcane",
+          "amount": 2,
+          "target": "enemy",
+          "scaling": [
+            {
+              "stat": "arcana",
+              "per": 1
+            }
+          ]
+        },
+        {
+          "type": "status",
+          "status": "poisoned",
+          "stacks": 2,
+          "target": "enemy"
+        }
+      ],
+      "intent": "enemy.hollow_abbot.drowning_hymn.intent"
+    },
+    {
+      "id": "litany",
+      "weight": 1,
+      "cooldown": 3,
+      "effects": [
+        {
+          "type": "heal",
+          "amount": 6,
+          "target": "self",
+          "scaling": [
+            {
+              "stat": "wisdom",
+              "per": 1
+            }
+          ]
+        },
+        {
+          "type": "status",
+          "status": "warded",
+          "stacks": 1,
+          "target": "self"
+        }
+      ],
+      "intent": "enemy.hollow_abbot.litany.intent"
+    }
+  ]
+}

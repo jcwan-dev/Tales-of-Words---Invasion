@@ -1,0 +1,11 @@
+{
+  "kind": "group",
+  "id": "group.stalker_and_hound",
+  "name": "group.stalker_and_hound.name",
+  "tier": "hard",
+  "enemies": [
+    "enemy.reed_stalker",
+    "enemy.bog_hound"
+  ],
+  "text": "group.stalker_and_hound.text"
+}

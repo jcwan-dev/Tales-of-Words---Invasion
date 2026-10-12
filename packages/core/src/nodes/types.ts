@@ -3,7 +3,7 @@
  * (event, combat, merchant, …) is a module registered by id. What a type does comes from its module, never
  * from its id (code rule 2): the merchant's "never twice in a row" is its `mayFollowItself: false`.
  */
-import type { ActDef } from "../content/types.ts";
+import type { ActDef, ContentPack } from "../content/types.ts";
 import type { Rng } from "../rng/rng.ts";
 import type { RunState } from "../run/run.ts";
 
@@ -14,7 +14,11 @@ export interface NodeBuildContext {
   /** The live run (read only by convention: a build must not change it). */
   readonly run: RunState;
   readonly act: ActDef;
-  /** The fixed node's `ref`, or null for a drawn option. */
+  /** The run's content pack: modules read content (enemies, groups, stock) through it (ADR 0011). */
+  readonly pack: ContentPack;
+  /** True for a fixed node of the act, false for a drawn option (ADR 0011). */
+  readonly fixed: boolean;
+  /** The fixed node's `ref` (null if it has none), or null for a drawn option. */
   readonly ref: string | null;
   /** The option's own stream (seed, act position, act, step, option position). */
   readonly rng: Rng;
@@ -32,8 +36,8 @@ export interface NodeType {
   readonly id: string;
   /** False for a type that may not be drawn right after a node of the same type (the merchant). */
   readonly mayFollowItself: boolean;
-  /** Whether the type may be drawn now. Not asked for fixed nodes. */
-  canAppear(run: RunState, act: ActDef): boolean;
+  /** Whether the type may be drawn now (at `run.step`). Not asked for fixed nodes. `pack` is the run's content pack. */
+  canAppear(run: RunState, act: ActDef, pack: ContentPack): boolean;
   /** Builds one option. Must be deterministic in its inputs and draw randomness only from `ctx.rng`. */
   build(ctx: NodeBuildContext): NodeBuild;
 }

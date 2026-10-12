@@ -48,8 +48,9 @@ export class CombatStateImpl implements CombatState {
 
 /**
  * The fight ends as soon as every unit on one side has fallen (spec: Turn details). If both sides
- * have fallen, the enemies win. Emits CombatEnded once. Call after any hit or damage-over-time tick
- * that felled a unit; does nothing for a context without a fight (`ctx.fight` null).
+ * have fallen, the enemies win. Emits CombatEnded when the fight ends (once per end: a fight reopened after
+ * a revive, see reopenFight, can end again). Call after any hit or damage-over-time tick that felled a unit;
+ * does nothing for a context without a fight (`ctx.fight` null) or a fight already over.
  */
 export function checkFightEnd(ctx: CombatContext): void {
   const state = ctx.fight;

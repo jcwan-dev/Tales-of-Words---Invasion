@@ -1,0 +1,53 @@
+{
+  "kind": "enemy",
+  "id": "enemy.reed_stalker",
+  "name": "enemy.reed_stalker.name",
+  "stats": {
+    "agility": 4,
+    "cunning": 3
+  },
+  "hp": 22,
+  "moves": [
+    {
+      "id": "lunge",
+      "weight": 2,
+      "cooldown": 0,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "physical",
+          "amount": 3,
+          "target": "enemy",
+          "scaling": [
+            {
+              "stat": "agility",
+              "per": 1
+            }
+          ],
+          "hits": 2
+        }
+      ],
+      "intent": "enemy.reed_stalker.lunge.intent"
+    },
+    {
+      "id": "hamstring",
+      "weight": 1,
+      "cooldown": 2,
+      "effects": [
+        {
+          "type": "damage",
+          "damageType": "physical",
+          "amount": 3,
+          "target": "enemy"
+        },
+        {
+          "type": "status",
+          "status": "bleeding",
+          "stacks": 2,
+          "target": "enemy"
+        }
+      ],
+      "intent": "enemy.reed_stalker.hamstring.intent"
+    }
+  ]
+}

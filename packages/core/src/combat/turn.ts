@@ -111,14 +111,23 @@ export function startTurn(state: CombatState): boolean {
 export function endTurn(state: CombatState): void {
   const s = impl(state);
   if (s === null || s.over || s.active === null) return;
-  const unit = s.active;
+  closeTurn(s, s.active, true);
+  advance(s);
+}
+
+/**
+ * The end of `unit`'s turn, without moving on: for a living unit, cooldowns tick, turn-end hooks run (ticking
+ * decay; only with `statusDecay`) and decaying powers drop by 1; then TurnEnded; then, for a living unit with
+ * moves, its next intent.
+ */
+function closeTurn(s: CombatStateImpl, unit: CombatUnit, statusDecay: boolean): void {
   const ctx = s.ctx;
   if (!unit.fallen) {
     unit.cooldowns.tick();
     const turn = s.turn;
     turn.round = s.round;
     s.decay.round = s.round;
-    dispatchTurn(TURN_HOOKS.onTurnEnd, unit, ctx, turn, false);
+    if (statusDecay) dispatchTurn(TURN_HOOKS.onTurnEnd, unit, ctx, turn, false);
     const powers = unit.powers;
     for (let i = 0; i < DECAYING_POWERS.length; i++) {
       const p = DECAYING_POWERS[i];
@@ -129,7 +138,6 @@ export function endTurn(state: CombatState): void {
   // Right after each of its turns (lost turns included, after the cooldown tick), a unit with moves
   // picks its next move (spec: Enemy moves).
   if (unit.moves.length > 0 && !unit.fallen) pickIntent(ctx, unit, null);
-  advance(s);
 }
 
 /** Moves `active` to the next living unit in the turn order; wrapping past the end starts a new round. */
@@ -153,4 +161,31 @@ function advance(s: CombatStateImpl): void {
     }
   }
   s.active = null;
+}
+
+/**
+ * Reopens a fight that ended with the player side's fall, after a revive (spec: Combat node; ADR 0011). The
+ * caller first brings the fallen unit back (HP above 0). The turn the fight ended in is finished first, as a
+ * turn ends (closeTurn: for its unit, if living, cooldowns tick and Stun power −1; TurnEnded; an enemy picks its
+ * next intent), except that statuses don't decay: the spec keeps the enemies' statuses unchanged across the
+ * revive (and the revived player's are cleared). Then `unit` acts next, at the start of a new round. If a side has no living unit (both
+ * sides had fallen), the fight ends again at once (CombatEnded, the player side wins). Throws RangeError if the
+ * fight isn't over or `unit` isn't a living unit of it. Runs between turns; allocates nothing but events.
+ */
+export function reopenFight(state: CombatState, unit: CombatUnit): void {
+  const s = impl(state);
+  if (s === null || !s.over) throw new RangeError("reopenFight: the fight is not over");
+  const index = s.units.indexOf(unit);
+  if (index < 0 || unit.fallen) throw new RangeError(`reopenFight: "${unit.id}" is not a living unit of this fight`);
+  s.over = false;
+  s.winner = null;
+  // The fight ended inside a turn (an action or turn-start damage): that turn is still open.
+  const interrupted = s.turnStarted ? s.units[s.index] : undefined;
+  if (interrupted !== undefined) closeTurn(s, interrupted, false);
+  s.round += 1;
+  s.index = index;
+  s.active = unit;
+  s.turnStarted = false;
+  s.canAct = false;
+  checkFightEnd(s.ctx);
 }
