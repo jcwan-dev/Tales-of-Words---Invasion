@@ -54,9 +54,9 @@ import { progressCtx, RELIC_IDS, snap, startProgressRun } from "./progress-pack.
 //    offers its granted skill or Word the same way. Cards from the old item stay."
 //   "Level-ups ... The player is offered two stats, one of them always favoured, and raises one: a favoured stat +2,
 //    any other +1, never above the run cap of 7 (base stats). The favoured stat is drawn among the character's
-//    favoured stats below the cap; the other among the remaining stats below the cap. If only one stat can rise, it
-//    is the only option; if none can, there is no level-up. Raising Vitality raises max HP and current HP by 5 per
-//    point."
+//    favoured stats below the cap; the other among the remaining stats below the cap. If no favoured stat can rise,
+//    one other stat is offered; if none can rise, there is no level-up. Raising Vitality recomputes max HP (20 + 5 ×
+//    final Vitality + items and relics) and current HP rises by the same amount as max HP."
 // Spec "Skills": "A player holds at most 5." "Gaining a skill when full: ... The player forgets one current skill or
 //   leaves the new one. Forgetting is permanent for the run." "Strike can be forgotten." "Changing weapon mid-run
 //   offers the new weapon's Strike as a new skill through the same choice. The weapon's stat bonus applies either way."

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   cardWithRarity,
+  playCard,
+  startTurn,
+  strikeCard,
+  type WeaponDef,
   floorAmount,
   heldRarity,
   higherRarity,
@@ -12,6 +16,8 @@ import {
   type CardSpec,
   type ContentFile,
 } from "../../../src/index.ts";
+import { eventsOf } from "../../combat/helpers.ts";
+import { during, enemy, fight, player } from "../../combat/turn-helpers.ts";
 import { progressCtx, startProgressRun } from "../progress-pack.ts";
 
 // Builder unit tests for model/rarity, the amount rounding and run/progress details.
@@ -24,6 +30,48 @@ describe("floorAmount", () => {
     expect(floorAmount(60.99)).toBe(60);
     expect(floorAmount(0)).toBe(0);
   });
+});
+
+describe("rounding down once, at the end (spec: Rarity)", () => {
+  const weapon: WeaponDef = {
+    kind: "weapon",
+    id: "weapon.spec",
+    name: "n",
+    attack: { damage: 4, damageType: "physical", scaling: [{ stat: "might", per: 2 }] },
+  };
+
+  it("grey Strike (4 + 7.2 = 11.2) with Emboldened 1 deals 14 (11.2 × 1.25), not 13 (11 × 1.25)", () => {
+    const p = player({ stats: { might: 4 }, statuses: { emboldened: 1 }, cards: [cardWithRarity(strikeCard(weapon), "grey")] });
+    const e = enemy("e", { maxHp: 100 });
+    const { ctx, state } = fight([p, e]);
+    startTurn(state);
+    expect(p.statuses.stacks("emboldened")).toBe(1);
+    const ev = during(ctx, () => expect(playCard(state, "strike")).toEqual({ ok: true }));
+    expect(eventsOf(ev, "HitStarted").map((h) => h.value)).toEqual([14]);
+    expect(e.hp).toBe(86);
+  });
+
+  for (const amount of [0, -3, 0.5]) {
+    it(`a heal or restore Shield of ${amount} (rounds down to ${Math.floor(amount)}) does nothing`, () => {
+      const card: CardSpec = {
+        id: "skill.nil",
+        cooldown: 1,
+        effects: [
+          { type: "heal", amount, target: "self" },
+          { type: "restoreShield", amount, target: "self" },
+        ],
+      };
+      const p = player({ maxHp: 30, hp: 10, maxShield: 10, cards: [card] });
+      const { ctx, state } = fight([p, enemy()]);
+      p.shield = 2;
+      startTurn(state);
+      const ev = during(ctx, () => expect(playCard(state, "skill.nil")).toEqual({ ok: true }));
+      expect(eventsOf(ev, "Healed")).toEqual([]);
+      expect(eventsOf(ev, "ShieldRestored")).toEqual([]);
+      expect(p.hp).toBe(10);
+      expect(p.shield).toBe(2);
+    });
+  }
 });
 
 describe("cardWithRarity details", () => {

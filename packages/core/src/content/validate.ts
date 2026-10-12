@@ -241,6 +241,9 @@ class Checker {
       if (!isObj(s) || !isNum(s["per"])) return this.fail(`${field}[${i}]`, shape);
       const kinds = (s["stat"] !== undefined ? 1 : 0) + (s["afflictions"] !== undefined ? 1 : 0) + (s["stacksOfTag"] !== undefined ? 1 : 0);
       if (kinds !== 1) return this.fail(`${field}[${i}]`, shape);
+      // At most 2 decimals (spec: Rarity), so rarity-scaled amounts round down exactly.
+      const hundredths = s["per"] * 100;
+      if (Math.abs(hundredths - Math.round(hundredths)) >= 1e-9) this.fail(`${field}[${i}].per`, "must have at most 2 decimals (a multiple of 0.01)");
       if (s["stat"] !== undefined && !isStatId(s["stat"])) this.fail(`${field}[${i}].stat`, `unknown stat; expected one of ${STAT_IDS.join(", ")}`);
       if (s["afflictions"] !== undefined && s["afflictions"] !== true) this.fail(`${field}[${i}].afflictions`, "must be true");
       if (s["stacksOfTag"] !== undefined && !(STATUS_TAGS as readonly unknown[]).includes(s["stacksOfTag"])) {
