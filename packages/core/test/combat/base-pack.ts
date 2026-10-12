@@ -23,6 +23,7 @@ import f19 from "../../../../content/base/words/dun.json" with { type: "json" };
 import f20 from "../../../../content/base/words/huo.json" with { type: "json" };
 import f21 from "../../../../content/base/words/lei.json" with { type: "json" };
 import f22 from "../../../../content/base/words/yu.json" with { type: "json" };
+import f23 from "../../../../content/base/acts/act1_drowned_marches/act.json" with { type: "json" };
 
 export const BASE_FILES: readonly ContentFile[] = [
   { path: "base/accessories/ember_charm.json", data: f1 },
@@ -47,6 +48,7 @@ export const BASE_FILES: readonly ContentFile[] = [
   { path: "base/words/huo.json", data: f20 },
   { path: "base/words/lei.json", data: f21 },
   { path: "base/words/yu.json", data: f22 },
+  { path: "base/acts/act1_drowned_marches/act.json", data: f23 },
 ];
 
 /** The validated base pack; throws with the issues if it doesn't validate. */

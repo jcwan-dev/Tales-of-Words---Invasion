@@ -3,6 +3,10 @@ export * from "./model/stats.ts";
 export * from "./rng/rng.ts";
 export * from "./run/limits.ts";
 export * from "./run/loadout.ts";
+export * from "./run/draw.ts";
+export * from "./run/run.ts";
+export * from "./nodes/types.ts";
+export * from "./nodes/registry.ts";
 export * from "./content/types.ts";
 export * from "./content/validate.ts";
 

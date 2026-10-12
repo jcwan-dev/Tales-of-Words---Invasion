@@ -36,7 +36,76 @@ const KIND_PREFIX: Record<ContentKind, string> = {
   path: "path",
   skill: "skill",
   word: "word",
+  act: "act",
 };
+
+const isInt = (v: unknown): v is number => isNum(v) && Number.isInteger(v);
+
+/** Optional list of story flags: an array of non-empty strings. */
+function checkFlagList(c: Checker, v: unknown, field: string): void {
+  if (v === undefined) return;
+  if (!Array.isArray(v) || !v.every(isStr)) c.fail(field, "must be an array of non-empty strings");
+}
+
+/** An act (spec: Run map, `act.json`). Node type ids aren't checked here: validation doesn't know the modules. */
+function checkAct(c: Checker, d: Obj): void {
+  const steps = d["steps"];
+  let min: number | null = null;
+  if (!isObj(steps) || !isInt(steps["min"]) || !isInt(steps["max"])) c.fail("steps", "must be { min, max } with integer values");
+  else if (steps["min"] < 2) c.fail("steps.min", "must be >= 2");
+  else if (steps["max"] < steps["min"]) c.fail("steps.max", "must be >= min");
+  else min = steps["min"];
+
+  const weights = d["weights"];
+  if (!isObj(weights)) c.fail("weights", "must be an object of node type → weight");
+  else {
+    let positive = false;
+    for (const [type, w] of Object.entries(weights)) {
+      if (type.length === 0) c.fail("weights", "node type ids must be non-empty");
+      if (!isInt(w) || w < 0) c.fail(`weights.${type}`, "must be an integer >= 0");
+      else if (w > 0) positive = true;
+    }
+    if (!positive) c.fail("weights", "at least one weight must be above 0");
+  }
+
+  const fixed = d["fixed"];
+  if (!Array.isArray(fixed)) c.fail("fixed", "must be an array of fixed nodes (every act has a \"last\" one, the boss)");
+  else {
+    const seen = new Set<number | "last">();
+    fixed.forEach((n, i) => {
+      const f = `fixed[${i}]`;
+      if (!isObj(n)) return c.fail(f, "must be { at, type, ref? }");
+      const at = n["at"];
+      if (at === "last" || (isInt(at) && at >= 1 && (min === null || at <= min - 1))) {
+        if (seen.has(at)) c.fail(`${f}.at`, at === "last" ? 'only one fixed node may be "last"' : `two fixed nodes on step ${at}`);
+        seen.add(at);
+      } else c.fail(`${f}.at`, `must be "last" or an integer from 1 to steps.min − 1`);
+      if (!isStr(n["type"])) c.fail(`${f}.type`, "must be a non-empty node type id");
+      if (n["ref"] !== undefined && !isStr(n["ref"])) c.fail(`${f}.ref`, "must be a non-empty string");
+    });
+    if (!seen.has("last")) c.fail("fixed", 'needs exactly one fixed node at "last" (the boss)');
+  }
+
+  const routes = d["routes"];
+  if (routes !== undefined) {
+    if (!Array.isArray(routes)) c.fail("routes", "must be an array of routes");
+    else {
+      let unconditioned = false;
+      routes.forEach((r, i) => {
+        const f = `routes[${i}]`;
+        if (!isObj(r)) return c.fail(f, "must be { to, flags?, notFlags? }");
+        if (!isStr(r["to"])) c.fail(`${f}.to`, "must be an act id");
+        checkFlagList(c, r["flags"], `${f}.flags`);
+        checkFlagList(c, r["notFlags"], `${f}.notFlags`);
+        const empty = (v: unknown): boolean => v === undefined || (Array.isArray(v) && v.length === 0);
+        if (empty(r["flags"]) && empty(r["notFlags"])) unconditioned = true;
+      });
+      if (routes.length > 0 && !unconditioned) c.fail("routes", "at least one route must have no flags and no notFlags, so a route is always open");
+    }
+  }
+
+  if (d["first"] !== undefined && typeof d["first"] !== "boolean") c.fail("first", "must be a boolean");
+}
 
 class Checker {
   readonly issues: ValidationIssue[] = [];
@@ -278,6 +347,9 @@ function checkDef(file: ContentFile): { def?: ContentDef; issues: ValidationIssu
     case "skill":
       checkSkillFields(c, d);
       break;
+    case "act":
+      checkAct(c, d);
+      break;
   }
   return c.issues.length === 0 ? { def: d as unknown as ContentDef, issues: [] } : { issues: c.issues };
 }
@@ -310,6 +382,17 @@ export function validatePack(packId: string, files: readonly ContentFile[]): Val
     if ((def.kind === "skill" || def.kind === "word") && def.upgrade !== undefined && !isSkillLike(def.upgrade)) {
       issues.push({ path: `${where}#upgrade`, message: `"${def.upgrade}" is not a skill or word in this pack` });
     }
+    if (def.kind === "act") {
+      (def.routes ?? []).forEach((r, i) => {
+        if (byId.get(r.to)?.kind !== "act") issues.push({ path: `${where}#routes[${i}].to`, message: `"${r.to}" is not an act in this pack` });
+      });
+    }
+  }
+
+  // At most one act a run starts in (spec: Run map). A pack with none is checked by the run engine.
+  const firsts = [...byId.values()].filter((def) => def.kind === "act" && def.first === true);
+  for (const def of firsts.slice(1)) {
+    issues.push({ path: `${fileOf.get(def.id) ?? def.id}#first`, message: `only one act per pack may be first; "${firsts[0]?.id ?? ""}" already is` });
   }
 
   return issues.length === 0 ? { issues, pack: { id: packId, byId } } : { issues };
