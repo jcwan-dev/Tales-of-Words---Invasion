@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assemblePlayer,
   cardFromSkill,
+  cardWithRarity,
   chooseOption,
   combatNodeType,
   completeNode,
@@ -400,11 +401,12 @@ describe("playerUnitFromRun", () => {
     };
     const cards = playerUnitFromRun(ctx.pack, run).cards ?? [];
     expect(cards.map((c) => c.id)).toEqual([TECHNIQUE, "word.t_arc", STRIKE, "skill.t_vit"]);
-    expect(cards[0]).toEqual(cardFromSkill(def(TECHNIQUE)));
-    expect(cards[1]).toEqual(cardFromSkill(def("word.t_arc")));
+    // Spec 1.11 "Rarity": everything starts grey; a held card with no recorded rarity counts as grey (clarification 2).
+    expect(cards[0]).toEqual(cardWithRarity(cardFromSkill(def(TECHNIQUE)), "grey"));
+    expect(cards[1]).toEqual(cardWithRarity(cardFromSkill(def("word.t_arc")), "grey"));
     expect(cards[2]).toEqual(strike);
     expect(cards[2]?.cooldown).toBe(0);
-    expect(cards[3]).toEqual(cardFromSkill(def("skill.t_vit")));
+    expect(cards[3]).toEqual(cardWithRarity(cardFromSkill(def("skill.t_vit")), "grey"));
   });
 
   it("has no Strike once it is forgotten", () => {
