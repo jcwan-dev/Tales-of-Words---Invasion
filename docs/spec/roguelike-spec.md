@@ -213,6 +213,7 @@ Example data:
 - **Everything starts grey**, Strike included, unless the loadout raises it: items and paths (later companions) can name cards to start at a higher rarity (`startRarity`, e.g. the weapon's Strike at blue). Several sources: the highest counts.
 - **Upgrading:** when a reward, merchant or event offers a skill you hold at a **higher** rarity, taking it raises your card to that rarity in its slot (no forgetting needed). A held skill is never offered at the same or a lower rarity.
 - Items don't have rarities (for now). Enemy moves have none.
+- Scaling values (`per`) in content have at most 2 decimals, so exact rounding stays exact. Damage modifiers apply to the unrounded amount and the result rounds down once, at the end (grey Strike 11.2 with Emboldened 1 → 14).
 - A held card with no recorded rarity counts as grey. The starting unit from loadout assembly already carries the starting rarities.
 
 ## Magic: words of power
