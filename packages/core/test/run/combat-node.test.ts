@@ -16,6 +16,7 @@ import {
   resumeFightAfterRevive,
   revive,
   RUN_LIMITS,
+  skipReward,
   startFight,
   startRun,
   STATUS_IDS,
@@ -626,7 +627,7 @@ describe("winning a fight", () => {
     expect(playerOf(session).fallen).toBe(false);
   });
 
-  it("finishFight completes the node with the HP lost and no crowns, and the run moves on", () => {
+  it("finishFight completes the node with the HP lost and no crowns; after the rewards screen the run moves on", () => {
     const { ctx, run, session } = fightAgainst("group.dummy");
     const hpBefore = run.player.hp;
     const crownsBefore = run.crowns;
@@ -638,6 +639,11 @@ describe("winning a fight", () => {
     expect(events[0]).toEqual({ type: "NodeCompleted", nodeType: "combat", hpChange: hpAfter - hpBefore, crownsChange: 0, hp: hpAfter, crowns: crownsBefore });
     expect(run.player.hp).toBe(hpAfter);
     expect(run.crowns).toBe(crownsBefore);
+    // Spec 1.11 (After-fight flow): a won fight opens the rewards screen first (reward-screen.test.ts covers it).
+    expect(kinds(events)).toEqual(["NodeCompleted", "RewardsOffered"]);
+    expect(run.phase).toBe("rewards");
+    expect(run.step).toBe(1);
+    ok(skipReward(ctx, run));
     expect(run.phase).toBe("choosing");
     expect(run.step).toBe(2);
     expect(run.node).toBeNull();

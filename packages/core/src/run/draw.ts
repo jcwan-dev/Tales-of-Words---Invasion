@@ -4,14 +4,14 @@
  */
 import type { Rng } from "../rng/rng.ts";
 
-/** A drawable node type and its weight (an integer above 0). */
-export interface WeightedType {
-  readonly type: string;
+/** A drawable node type (or any other string choice, e.g. a reward kind) and its weight (an integer above 0). */
+export interface WeightedType<T extends string = string> {
+  readonly type: T;
   readonly weight: number;
 }
 
 /** One type by weight. `items` must be non-empty with positive integer weights. */
-export function pickWeighted(rng: Rng, items: readonly WeightedType[]): string {
+export function pickWeighted<T extends string>(rng: Rng, items: readonly WeightedType<T>[]): T {
   let total = 0;
   for (const it of items) total += it.weight;
   if (items.length === 0 || total <= 0) throw new RangeError("pickWeighted: nothing to draw");

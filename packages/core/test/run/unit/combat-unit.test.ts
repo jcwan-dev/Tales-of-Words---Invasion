@@ -17,6 +17,7 @@ import {
   loadoutUnit,
   resumeFightAfterRevive,
   revive,
+  skipReward,
   tierBandAt,
   type ActDef,
   type CombatContext,
@@ -107,6 +108,8 @@ describe("finishFight and resume guards", () => {
     while (fightOutcome(session) === "ongoing" && n++ < 50) fightPlay(session, STRIKE);
     expect(fightOutcome(session)).toBe("won");
     ok(finishFight(ctx, run, session));
+    expect(run.phase).toBe("rewards"); // spec 1.11: the rewards screen comes first
+    ok(skipReward(ctx, run));
     ok(chooseOption(ctx, run, 0)); // step 2: a fake event
     expect(run.phase).toBe("inNode");
     const before = snapshot(run);
@@ -125,6 +128,8 @@ describe("finishFight and resume guards", () => {
     const before = run.player.hp;
     ok(finishFight(ctx, run, session));
     expect(run.player.hp).toBe(before);
+    expect(run.phase).toBe("rewards"); // spec 1.11: the won fight opens the rewards screen
+    ok(skipReward(ctx, run));
     expect(run.phase).toBe("choosing");
   });
 
@@ -257,6 +262,10 @@ describe("revive after both sides fell", () => {
     expect(eventsOf(session).slice(from).some((e) => e.type === "TurnStarted")).toBe(false);
     const events = ok(finishFight(ctx, run, session));
     expect(events[0]).toMatchObject({ type: "NodeCompleted", nodeType: "combat", hpChange: 0, crownsChange: 0 });
+    expect(events[1]).toMatchObject({ type: "RewardsOffered", tier: "normal", rerolls: 0 });
+    expect(run.phase).toBe("rewards");
+    expect(run.step).toBe(1);
+    ok(skipReward(ctx, run));
     expect(run.phase).toBe("choosing");
     expect(run.step).toBe(2);
   });

@@ -8,6 +8,7 @@ export * from "./run/draw.ts";
 export * from "./run/run.ts";
 export * from "./run/player.ts";
 export * from "./run/progress.ts";
+export * from "./run/rewards.ts";
 export * from "./run/fight.ts";
 export * from "./nodes/types.ts";
 export * from "./nodes/registry.ts";

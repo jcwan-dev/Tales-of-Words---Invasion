@@ -8,15 +8,18 @@
  * Randomness: each decision has its own stream from the run seed, the act's position in the run, the act and the
  * step (and the option's position), so nothing else in the run shifts it and an act visited twice draws afresh.
  */
-import type { ActDef, ContentPack, FixedNodeDef } from "../content/types.ts";
+import { MAX_PLAYER_CARDS } from "../combat/unit.ts";
+import { GROUP_TIERS, type ActDef, type ContentPack, type FixedNodeDef, type GroupTier, type RewardTableDef } from "../content/types.ts";
 import type { Rarity } from "../model/rarity.ts";
-import type { StatBlock } from "../model/stats.ts";
+import type { StatBlock, StatId } from "../model/stats.ts";
 import type { NodeRegistry } from "../nodes/registry.ts";
 import type { JsonValue, NodeType } from "../nodes/types.ts";
 import { RngStreams } from "../rng/rng.ts";
 import { drawOptionTypes, type WeightedType } from "./draw.ts";
 import { consume, initialRunLimits, type Grant, type RunLimitsState } from "./limits.ts";
-import { assemblePlayer, type LoadoutPicks } from "./loadout.ts";
+import { assemblePlayer, intelligenceBonusOptions, loadoutFinalStats, type LoadoutPicks } from "./loadout.ts";
+import { applyLevelUp, equipItem, gainRelic, itemOfferRarity, learnCard, levelUpOffer, upgradeCard } from "./progress.ts";
+import { copyCard, drawRewardScreen, LEVEL_UP_TIERS, RELIC_CARD_TIERS, type ItemSlot, type RewardCard } from "./rewards.ts";
 
 export interface RunContext {
   readonly pack: ContentPack;
@@ -33,7 +36,30 @@ export interface NodeOption {
   readonly data: JsonValue;
 }
 
-export type RunPhase = "choosing" | "inNode" | "route" | "fallen" | "won" | "lost";
+/**
+ * choosing a node → in a node → (after a fight) rewards → learning → levelUp → the next step, or (after the boss)
+ * route → next act; or fallen; or ended (won or lost).
+ */
+export type RunPhase = "choosing" | "inNode" | "rewards" | "learning" | "levelUp" | "route" | "fallen" | "won" | "lost";
+
+/** The rewards screen (phase "rewards"). `rerolls` counts this screen's rerolls (each screen starts at 0). */
+export interface RewardsState {
+  tier: GroupTier;
+  rerolls: number;
+  cards: RewardCard[];
+}
+
+/** A card waiting to be learned with 5 held (phase "learning"); `queue`: further incoming cards, in order. */
+export interface LearningState {
+  card: string;
+  rarity: Rarity;
+  queue: { card: string; rarity: Rarity }[];
+}
+
+/** The stats a level-up offers (phase "levelUp"). */
+export interface LevelUpState {
+  options: StatId[];
+}
 
 export interface RunPlayer {
   hp: number;
@@ -80,6 +106,17 @@ export interface RunState {
    * then goes back into the node instead of moving on (spec: Combat node). False otherwise.
    */
   fellInNode: boolean;
+  /** The rewards screen (phase "rewards"); null otherwise. */
+  rewards: RewardsState | null;
+  /** The card waiting to be learned (phase "learning"); null otherwise. */
+  learning: LearningState | null;
+  /** The level-up offer (phase "levelUp"); null otherwise. */
+  levelUp: LevelUpState | null;
+  /**
+   * The tier of the pending after-fight flow: set when a node completes with a `rewardTier` (kept through a fall, so
+   * a revive runs the flow), cleared when the run moves on or ends. Null otherwise.
+   */
+  rewardTier: GroupTier | null;
 }
 
 /** What a node hands back when it finishes. Integers only. */
@@ -88,6 +125,8 @@ export interface NodeResult {
   readonly crowns?: number;
   readonly setFlags?: readonly string[];
   readonly clearFlags?: readonly string[];
+  /** A won fight's tier: the after-fight flow follows, from the act's table for this tier (spec: After-fight flow). */
+  readonly rewardTier?: GroupTier;
 }
 
 export type RunRefusal = "wrong_phase" | "no_such_option" | "no_such_route" | "invalid_result" | "limit_reached" | "wrong_action";
@@ -115,7 +154,27 @@ export type RunEvent =
   | { readonly type: "Revived"; readonly hp: number }
   | { readonly type: "ActCompleted"; readonly act: string }
   | { readonly type: "RoutesOffered"; readonly routes: readonly string[] }
-  | { readonly type: "RunEnded"; readonly result: "won" | "lost" };
+  | { readonly type: "RunEnded"; readonly result: "won" | "lost" }
+  | { readonly type: "RewardsOffered"; readonly tier: GroupTier; readonly cards: readonly RewardCard[]; readonly rerolls: number }
+  | { readonly type: "RewardsRerolled"; readonly rerollsUsed: number }
+  | { readonly type: "RewardTaken"; readonly card: RewardCard }
+  | { readonly type: "RewardSkipped" }
+  | { readonly type: "CardOffered"; readonly card: string; readonly rarity: Rarity }
+  | { readonly type: "CardLearned"; readonly card: string; readonly rarity: Rarity; readonly replaced: string | null }
+  | { readonly type: "CardUpgraded"; readonly card: string; readonly rarity: Rarity }
+  | { readonly type: "CardLeft"; readonly card: string }
+  | {
+      readonly type: "ItemEquipped";
+      readonly slot: ItemSlot;
+      readonly item: string;
+      readonly previous: string;
+      readonly maxHp: number;
+      readonly hp: number;
+    }
+  | { readonly type: "CrownsGained"; readonly amount: number; readonly crowns: number }
+  | { readonly type: "RelicGained"; readonly relic: string; readonly maxHp: number; readonly hp: number }
+  | { readonly type: "LevelUpOffered"; readonly options: readonly StatId[] }
+  | { readonly type: "StatRaised"; readonly stat: StatId; readonly value: number; readonly maxHp: number; readonly hp: number };
 
 export type CommandResult = { readonly ok: true; readonly events: readonly RunEvent[] } | { readonly ok: false; readonly reason: RunRefusal };
 
@@ -276,6 +335,10 @@ export function startRun(ctx: RunContext, init: { seed: string; picks: LoadoutPi
     previousType: null,
     routes: [],
     fellInNode: false,
+    rewards: null,
+    learning: null,
+    levelUp: null,
+    rewardTier: null,
   };
   const events: RunEvent[] = [{ type: "RunStarted", seed: init.seed }];
   enterAct(ctx, run, first, events);
@@ -304,6 +367,8 @@ export function completeNode(ctx: RunContext, run: RunState, result: NodeResult)
   if (!isIntOrAbsent(result.hp) || !isIntOrAbsent(result.crowns)) return refuse("invalid_result");
   const crownsChange = result.crowns ?? 0;
   if (run.crowns + crownsChange < 0) return refuse("invalid_result");
+  const tier = result.rewardTier;
+  if (tier !== undefined && rewardTable(ctx, run, tier) === undefined) return refuse("invalid_result");
 
   const before = run.player.hp;
   run.player.hp = Math.min(run.player.maxHp, Math.max(0, before + (result.hp ?? 0)));
@@ -315,10 +380,12 @@ export function completeNode(ctx: RunContext, run: RunState, result: NodeResult)
   const events: RunEvent[] = [
     { type: "NodeCompleted", nodeType: node.type, hpChange: run.player.hp - before, crownsChange, hp: run.player.hp, crowns: run.crowns },
   ];
+  run.rewardTier = tier ?? null;
   if (run.player.hp === 0) {
+    // The after-fight flow waits: a revive runs it.
     run.phase = "fallen";
     events.push({ type: "PlayerFell" });
-  } else advance(ctx, run, events);
+  } else afterNode(ctx, run, events);
   return accept(events);
 }
 
@@ -351,7 +418,7 @@ export function revive(ctx: RunContext, run: RunState, grant: Grant): CommandRes
     run.phase = "inNode";
   } else {
     run.fellInNode = false;
-    advance(ctx, run, events);
+    afterNode(ctx, run, events);
   }
   return accept(events);
 }
@@ -362,6 +429,7 @@ export function endRun(run: RunState): CommandResult {
   run.phase = "lost";
   run.node = null;
   run.fellInNode = false;
+  run.rewardTier = null;
   return accept([{ type: "RunEnded", result: "lost" }]);
 }
 
@@ -376,5 +444,225 @@ export function chooseRoute(ctx: RunContext, run: RunState, index: number): Comm
   run.actNumber += 1;
   const events: RunEvent[] = [];
   enterAct(ctx, run, act, events);
+  return accept(events);
+}
+
+// ---------------------------------------------------------------------------------------------
+// After-fight flow (spec: Rewards and level-ups, "After-fight flow"; ADR 0013):
+// rewards → learning (a card arriving with 5 held) → level-up (elite and boss) → the next step, or the routes.
+
+const isGroupTier = (t: unknown): t is GroupTier => typeof t === "string" && (GROUP_TIERS as readonly string[]).includes(t);
+
+/** The current act's table for `tier`, or undefined (not a tier, or no table). */
+function rewardTable(ctx: RunContext, run: RunState, tier: unknown): RewardTableDef | undefined {
+  if (!isGroupTier(tier)) return undefined;
+  const rewards = actDef(ctx.pack, run.act).rewards;
+  if (rewards === undefined || !Object.hasOwn(rewards, tier)) return undefined;
+  return rewards[tier];
+}
+
+/** After a node is done (completed, or revived after it): the after-fight flow if a tier is pending, else move on. */
+function afterNode(ctx: RunContext, run: RunState, events: RunEvent[]): void {
+  if (run.rewardTier !== null) openRewards(ctx, run, events);
+  else advance(ctx, run, events);
+}
+
+/** Draws the screen for the pending tier with the given reroll number. Throws if the act lost its table (content bug). */
+function drawScreen(ctx: RunContext, run: RunState, tier: GroupTier, rerolls: number): RewardCard[] {
+  const table = rewardTable(ctx, run, tier);
+  if (table === undefined) throw new Error(`run: "${run.act}" has no reward table for tier "${tier}"`);
+  const p = run.player;
+  const intelligence = loadoutFinalStats(ctx.pack, run.picks, p.baseStats, run.relics).intelligence;
+  const rng = new RngStreams(run.seed).derive("rewards", run.actNumber, run.act, run.step, rerolls);
+  return drawRewardScreen(
+    ctx.pack,
+    {
+      cards: p.cards,
+      rarities: p.rarities,
+      picks: run.picks,
+      relics: run.relics,
+      table,
+      bonus: intelligenceBonusOptions(intelligence),
+      relicCard: RELIC_CARD_TIERS.includes(tier),
+    },
+    rng,
+  );
+}
+
+function offerRewards(run: RunState, events: RunEvent[]): void {
+  const r = run.rewards;
+  if (r === null) return;
+  events.push({ type: "RewardsOffered", tier: r.tier, cards: r.cards.map(copyCard), rerolls: r.rerolls });
+}
+
+/** The rewards screen; nothing to offer: no screen, straight on. */
+function openRewards(ctx: RunContext, run: RunState, events: RunEvent[]): void {
+  const tier = run.rewardTier;
+  if (tier === null) return advance(ctx, run, events);
+  const cards = drawScreen(ctx, run, tier, 0);
+  if (cards.length === 0) return afterRewards(ctx, run, events);
+  run.phase = "rewards";
+  run.rewards = { tier, rerolls: 0, cards };
+  offerRewards(run, events);
+}
+
+/**
+ * Learns incoming cards in order: one already held is skipped; with room it is added at the end; with 5 held the run
+ * waits in phase "learning" with the rest queued. When none is left, the flow goes on.
+ */
+function learnIncoming(ctx: RunContext, run: RunState, queue: readonly { card: string; rarity: Rarity }[], events: RunEvent[]): void {
+  for (let i = 0; i < queue.length; i++) {
+    const next = queue[i];
+    if (next === undefined || run.player.cards.includes(next.card)) continue;
+    if (run.player.cards.length < MAX_PLAYER_CARDS) {
+      const res = learnCard(ctx.pack, run, next.card, next.rarity, null);
+      if (!res.ok) throw new Error(`run: can't learn "${next.card}" (${res.reason})`);
+      events.push({ type: "CardLearned", card: next.card, rarity: next.rarity, replaced: null });
+      continue;
+    }
+    run.phase = "learning";
+    run.learning = { card: next.card, rarity: next.rarity, queue: queue.slice(i + 1).map((q) => ({ card: q.card, rarity: q.rarity })) };
+    events.push({ type: "CardOffered", card: next.card, rarity: next.rarity });
+    return;
+  }
+  afterRewards(ctx, run, events);
+}
+
+/** After the screen and any learning: the level-up for elite and boss tiers (if a stat can rise), else move on. */
+function afterRewards(ctx: RunContext, run: RunState, events: RunEvent[]): void {
+  run.rewards = null;
+  run.learning = null;
+  const tier = run.rewardTier;
+  if (tier !== null && LEVEL_UP_TIERS.includes(tier)) {
+    const rng = new RngStreams(run.seed).derive("levelup", run.actNumber, run.act, run.step);
+    const options = [...levelUpOffer(ctx.pack, run, rng)];
+    if (options.length > 0) {
+      run.phase = "levelUp";
+      run.levelUp = { options };
+      events.push({ type: "LevelUpOffered", options: [...options] });
+      return;
+    }
+  }
+  finishFlow(ctx, run, events);
+}
+
+/** The flow is over: the run moves on (next step, routes or victory). */
+function finishFlow(ctx: RunContext, run: RunState, events: RunEvent[]): void {
+  run.rewards = null;
+  run.learning = null;
+  run.levelUp = null;
+  run.rewardTier = null;
+  advance(ctx, run, events);
+}
+
+/**
+ * Takes card `index` of the rewards screen (spec: After-fight flow, "Taking a card"): a held skill or Word rises to
+ * the card's rarity; a new one is learned (added, or phase "learning" with 5 held); an item is equipped and the card
+ * it offers learned the same way; a purse adds crowns; a relic is gained. Then the flow goes on.
+ */
+export function takeReward(ctx: RunContext, run: RunState, index: number): CommandResult {
+  const r = run.rewards;
+  if (run.phase !== "rewards" || r === null) return refuse("wrong_phase");
+  if (!isIndex(index, r.cards.length)) return refuse("no_such_option");
+  const card = r.cards[index];
+  if (card === undefined) return refuse("no_such_option");
+  const events: RunEvent[] = [{ type: "RewardTaken", card: copyCard(card) }];
+  run.rewards = null;
+  switch (card.kind) {
+    case "skill": {
+      if (run.player.cards.includes(card.id)) {
+        const res = upgradeCard(run, card.id, card.rarity);
+        if (!res.ok) throw new Error(`run: can't upgrade "${card.id}" (${res.reason})`);
+        events.push({ type: "CardUpgraded", card: card.id, rarity: card.rarity });
+        afterRewards(ctx, run, events);
+      } else learnIncoming(ctx, run, [{ card: card.id, rarity: card.rarity }], events);
+      break;
+    }
+    case "item": {
+      const previous = run.picks[card.slot];
+      const { offers } = equipItem(ctx.pack, run, card.id);
+      events.push({ type: "ItemEquipped", slot: card.slot, item: card.id, previous, maxHp: run.player.maxHp, hp: run.player.hp });
+      learnIncoming(
+        ctx,
+        run,
+        offers.map((id) => ({ card: id, rarity: itemOfferRarity(ctx.pack, run, id) })),
+        events,
+      );
+      break;
+    }
+    case "crowns":
+      run.crowns += card.amount;
+      events.push({ type: "CrownsGained", amount: card.amount, crowns: run.crowns });
+      afterRewards(ctx, run, events);
+      break;
+    case "relic":
+      gainRelic(ctx.pack, run, card.id);
+      events.push({ type: "RelicGained", relic: card.id, maxHp: run.player.maxHp, hp: run.player.hp });
+      afterRewards(ctx, run, events);
+      break;
+  }
+  return accept(events);
+}
+
+/** Leaves every card of the rewards screen; the flow goes on. */
+export function skipReward(ctx: RunContext, run: RunState): CommandResult {
+  if (run.phase !== "rewards" || run.rewards === null) return refuse("wrong_phase");
+  const events: RunEvent[] = [{ type: "RewardSkipped" }];
+  afterRewards(ctx, run, events);
+  return accept(events);
+}
+
+/**
+ * Redraws the whole screen (spec: After-fight flow, "Rerolls"; Monetisation architecture): needs a reroll grant,
+ * within the run limit (run/limits.ts). The stream is per node and this screen's reroll number, so nothing else in the
+ * run shifts; the boss relic card stays a relic card.
+ */
+export function rerollRewards(ctx: RunContext, run: RunState, grant: Grant): CommandResult {
+  const r = run.rewards;
+  if (run.phase !== "rewards" || r === null) return refuse("wrong_phase");
+  const res = consume(run.limits, "reroll", grant);
+  if (!res.ok) return refuse(res.reason);
+  const rerolls = r.rerolls + 1;
+  const cards = drawScreen(ctx, run, r.tier, rerolls);
+  run.limits = res.state;
+  run.rewards = { tier: r.tier, rerolls, cards };
+  const events: RunEvent[] = [{ type: "RewardsRerolled", rerollsUsed: run.limits.used.reroll }];
+  offerRewards(run, events);
+  return accept(events);
+}
+
+/** Phase "learning": forgets held card `cardId`; the new card takes its place. Then the next incoming card, or on. */
+export function learnForget(ctx: RunContext, run: RunState, cardId: string): CommandResult {
+  const l = run.learning;
+  if (run.phase !== "learning" || l === null) return refuse("wrong_phase");
+  if (!run.player.cards.includes(cardId)) return refuse("no_such_option");
+  const res = learnCard(ctx.pack, run, l.card, l.rarity, cardId);
+  if (!res.ok) return refuse("no_such_option");
+  const events: RunEvent[] = [{ type: "CardLearned", card: l.card, rarity: l.rarity, replaced: cardId }];
+  run.learning = null;
+  learnIncoming(ctx, run, l.queue, events);
+  return accept(events);
+}
+
+/** Phase "learning": leaves the offered card and keeps the hand. Then the next incoming card, or on. */
+export function learnLeave(ctx: RunContext, run: RunState): CommandResult {
+  const l = run.learning;
+  if (run.phase !== "learning" || l === null) return refuse("wrong_phase");
+  const events: RunEvent[] = [{ type: "CardLeft", card: l.card }];
+  run.learning = null;
+  learnIncoming(ctx, run, l.queue, events);
+  return accept(events);
+}
+
+/** Phase "levelUp": raises offered stat `index` (applyLevelUp), then the run moves on. */
+export function chooseLevelUp(ctx: RunContext, run: RunState, index: number): CommandResult {
+  const l = run.levelUp;
+  if (run.phase !== "levelUp" || l === null) return refuse("wrong_phase");
+  if (!isIndex(index, l.options.length)) return refuse("no_such_option");
+  const stat = l.options[index];
+  if (stat === undefined) return refuse("no_such_option");
+  applyLevelUp(ctx.pack, run, stat);
+  const events: RunEvent[] = [{ type: "StatRaised", stat, value: run.player.baseStats[stat], maxHp: run.player.maxHp, hp: run.player.hp }];
+  finishFlow(ctx, run, events);
   return accept(events);
 }
