@@ -478,6 +478,7 @@ Intelligence adds options as for every skill offer (+1 card at 4, +2 at 6); the 
 - **Taking a card:** a held skill → its rarity rises (no forgetting); a new skill with fewer than 5 cards → added at the end; with 5 → forget one (Strike included) or leave it. An item → equipped (see Item swaps); the card it offers (a weapon's Strike, an accessory's grant, at the item's start rarity) is added the same way, unless already held. A purse → crowns. A relic → gained. The player may also take nothing.
 - **Rerolls:** the reroll number counts rerolls of the current screen (each screen starts at 0); the stream is per node and reroll number, so nothing else in the run shifts. Limit 3 per run, through a grant.
 - **Level-up choices** must be one of the stats offered.
+- **Details:** if every kind with a weight above 0 has run out, that card is not drawn and the screen is shorter (weight 0 never fills in). Cards are shown base cards first (the boss relic is the last base card), then the Intelligence bonus cards. A held card with no recorded rarity counts as grey. When an item's card is already held, nothing is offered for it. While a reward, learning or level-up choice is open, ending the run or falling is not possible.
 - **Tables:** an act that can fight (it has groups, or a fixed node whose `ref` is a group) has a rewards table for all four tiers; a result naming a tier with no table is refused.
 
 ### Combat screen (portrait)

@@ -39,6 +39,9 @@ const group = (id: string, over: Obj = {}, path = `${id}.json`): ContentFile => 
   data: strip({ kind: "group", id, name: `${id}.name`, tier: "normal", enemies: ["enemy.e"], text: `${id}.text`, ...over }),
 });
 
+/** A reward table (spec 1.11, "Rewards and level-ups"). */
+const TABLE: Obj = { kinds: { skill: 1, item: 1, crowns: 1 }, rarity: { grey: 1 }, crowns: { min: 0, max: 5 } };
+
 const act = (id: string, over: Obj = {}, path = `${id}.json`): ContentFile => ({
   path,
   data: strip({
@@ -48,6 +51,8 @@ const act = (id: string, over: Obj = {}, path = `${id}.json`): ContentFile => ({
     steps: { min: 3, max: 5 },
     weights: { event: 50, combat: 35, merchant: 15 },
     fixed: [{ at: "last", type: "combat", ref: "group.boss" }],
+    // Spec 1.11 (After-fight flow, "Tables"): the boss ref is a group, so the act can fight and needs every tier.
+    rewards: { normal: TABLE, hard: TABLE, elite: TABLE, boss: TABLE },
     ...over,
   }),
 });

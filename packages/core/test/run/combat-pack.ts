@@ -118,8 +118,22 @@ export const COMBAT_FILES: readonly ContentFile[] = [...ENEMY_FILES, ...GROUP_FI
 // Acts
 
 /**
+ * One reward table (spec 1.11, "Rewards and level-ups"; brief M2.4b): skills, items and purses, grey to blue,
+ * purses 10-20. Placeholder numbers for the combat tests.
+ */
+export const COMBAT_REWARD_TABLE = {
+  kinds: { skill: 2, item: 1, crowns: 1 },
+  rarity: { grey: 3, green: 2, blue: 1 },
+  crowns: { min: 10, max: 20 },
+} as const;
+
+/** `rewards` for every tier: an act that can fight needs a table for all four (spec 1.11, After-fight flow, "Tables"). */
+export const COMBAT_REWARDS = { normal: COMBAT_REWARD_TABLE, hard: COMBAT_REWARD_TABLE, elite: COMBAT_REWARD_TABLE, boss: COMBAT_REWARD_TABLE } as const;
+
+/**
  * An act for the combat tests: first, steps 3–3, weights { combat: 1 } (every drawn option is a combat),
- * groups n1/n2/n3, one band { from 1, normal 1 }, only the boss fixed. `over` replaces whole fields.
+ * groups n1/n2/n3, one band { from 1, normal 1 }, only the boss fixed, the same reward table for every tier.
+ * `over` replaces whole fields.
  */
 export function combatAct(id = "act.c", over: Obj = {}): ContentFile {
   return actFile(id, {
@@ -127,6 +141,7 @@ export function combatAct(id = "act.c", over: Obj = {}): ContentFile {
     weights: { combat: 1 },
     groups: ["group.n1", "group.n2", "group.n3"],
     tiers: [{ from: 1, weights: { normal: 1 } }],
+    rewards: COMBAT_REWARDS,
     ...over,
   });
 }
