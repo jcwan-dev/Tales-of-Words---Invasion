@@ -22,5 +22,11 @@
     { "from": 1, "weights": { "normal": 80, "hard": 20 } },
     { "from": 5, "weights": { "normal": 50, "hard": 35, "elite": 15 } },
     { "from": 9, "weights": { "normal": 30, "hard": 45, "elite": 25 } }
-  ]
+  ],
+  "rewards": {
+    "normal": { "kinds": { "skill": 35, "item": 25, "crowns": 40 }, "rarity": { "grey": 60, "green": 30, "blue": 10 }, "crowns": { "min": 15, "max": 30 } },
+    "hard": { "kinds": { "skill": 35, "item": 25, "crowns": 40 }, "rarity": { "grey": 45, "green": 35, "blue": 20 }, "crowns": { "min": 25, "max": 45 } },
+    "elite": { "kinds": { "skill": 35, "item": 25, "crowns": 40 }, "rarity": { "green": 40, "blue": 40, "purple": 20 }, "crowns": { "min": 35, "max": 60 } },
+    "boss": { "kinds": { "skill": 35, "item": 25, "crowns": 40 }, "rarity": { "blue": 50, "purple": 40, "orange": 10 }, "crowns": { "min": 60, "max": 90 } }
+  }
 }

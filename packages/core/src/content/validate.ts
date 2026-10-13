@@ -9,6 +9,7 @@ import { isStatId, STAT_IDS } from "../model/stats.ts";
 import {
   DRAWN_TIERS,
   GROUP_TIERS,
+  REWARD_KINDS,
   STATUS_IDS,
   STATUS_TAGS,
   TRIGGER_EVENTS,
@@ -129,6 +130,48 @@ function checkAct(c: Checker, d: Obj): void {
     else if (new Set(groups).size !== groups.length) c.fail("groups", "must not list a group twice");
   }
   if (tiers !== undefined) checkTiers(c, tiers);
+
+  // Reward tables (spec: Rewards and level-ups). Which acts need all four tiers is checked in validatePack (it needs
+  // to know whether a fixed node's ref is a group).
+  if (d["rewards"] !== undefined) checkRewards(c, d["rewards"]);
+}
+
+/** Weights: an object of known keys → non-negative integers, at least one above 0. */
+function checkWeights(c: Checker, v: unknown, field: string, known: readonly string[]): void {
+  if (!isObj(v)) return c.fail(field, `must be an object of ${known.join(" / ")} → weight`);
+  let positive = false;
+  for (const [key, w] of Object.entries(v)) {
+    if (!known.includes(key)) c.fail(`${field}.${key}`, `unknown key; expected one of ${known.join(", ")}`);
+    if (!isInt(w) || w < 0) c.fail(`${field}.${key}`, "must be an integer >= 0");
+    else if (w > 0) positive = true;
+  }
+  if (!positive) c.fail(field, "at least one weight must be above 0");
+}
+
+const TABLE_KEYS: readonly string[] = ["kinds", "rarity", "crowns"];
+const PURSE_KEYS: readonly string[] = ["min", "max"];
+
+/** `rewards`: fight tier → { kinds, rarity, crowns }; no unknown keys at any level. */
+function checkRewards(c: Checker, rewards: unknown): void {
+  if (!isObj(rewards)) return c.fail("rewards", "must be an object of tier → reward table");
+  for (const [tier, t] of Object.entries(rewards)) {
+    const f = `rewards.${tier}`;
+    if (!(GROUP_TIERS as readonly string[]).includes(tier)) c.fail(f, `unknown tier; expected one of ${GROUP_TIERS.join(", ")}`);
+    if (!isObj(t)) {
+      c.fail(f, "must be { kinds, rarity, crowns }");
+      continue;
+    }
+    for (const key of Object.keys(t)) if (!TABLE_KEYS.includes(key)) c.fail(`${f}.${key}`, `unknown key; expected ${TABLE_KEYS.join(", ")}`);
+    checkWeights(c, t["kinds"], `${f}.kinds`, REWARD_KINDS);
+    checkWeights(c, t["rarity"], `${f}.rarity`, RARITIES);
+    const purse = t["crowns"];
+    if (!isObj(purse) || !isInt(purse["min"]) || !isInt(purse["max"])) c.fail(`${f}.crowns`, "must be { min, max } with integer values");
+    else {
+      if (purse["min"] < 0) c.fail(`${f}.crowns.min`, "must be >= 0");
+      if (purse["max"] < purse["min"]) c.fail(`${f}.crowns.max`, "must be >= min");
+      for (const key of Object.keys(purse)) if (!PURSE_KEYS.includes(key)) c.fail(`${f}.crowns.${key}`, "unknown key; expected min, max");
+    }
+  }
 }
 
 /** Tier bands: non-empty, the first from step 1, `from` strictly increasing; weights for drawn tiers only. */
@@ -538,6 +581,12 @@ export function validatePack(packId: string, files: readonly ContentFile[]): Val
       (def.groups ?? []).forEach((g, i) => {
         if (byId.get(g)?.kind !== "group") issues.push({ path: `${where}#groups[${i}]`, message: `"${g}" is not a group in this pack` });
       });
+      // An act that can fight has a reward table for every tier (spec: After-fight flow, "Tables").
+      const canFight = def.groups !== undefined || def.fixed.some((f) => f.ref !== undefined && byId.get(f.ref)?.kind === "group");
+      if (canFight) {
+        const missing = GROUP_TIERS.filter((t) => def.rewards?.[t] === undefined);
+        if (missing.length > 0) issues.push({ path: `${where}#rewards`, message: `an act that can fight needs a reward table for every tier; missing: ${missing.join(", ")}` });
+      }
     }
     if (def.kind === "group") {
       def.enemies.forEach((e, i) => {

@@ -416,3 +416,11 @@ export function loadoutMaxHp(pack: ContentPack, picks: LoadoutPicks, baseStats: 
   const body = bodyOf(resolve(pack, picks), baseStats, resolveRelics(pack, relicIds));
   return maxHpFromVitality(body.stats.vitality) + body.bonusHp;
 }
+
+/**
+ * Final stats from the loadout (spec: Loadout assembly; Rewards and level-ups): `baseStats` plus the item, path and
+ * relic modifiers, floor 0. Throws RangeError for bad picks or relics.
+ */
+export function loadoutFinalStats(pack: ContentPack, picks: LoadoutPicks, baseStats: StatBlock, relicIds: readonly string[]): StatBlock {
+  return bodyOf(resolve(pack, picks), baseStats, resolveRelics(pack, relicIds)).stats;
+}

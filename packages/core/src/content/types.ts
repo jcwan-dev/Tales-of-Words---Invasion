@@ -241,6 +241,21 @@ export interface TierBand {
   readonly weights: Readonly<Partial<Record<DrawnTier, number>>>;
 }
 
+/** The kinds a reward table weights (spec: Rewards and level-ups). The boss relic card is not a table kind. */
+export const REWARD_KINDS = ["skill", "item", "crowns"] as const;
+export type RewardKind = (typeof REWARD_KINDS)[number];
+
+/**
+ * One tier's reward table (spec: Rewards and level-ups, "Act data"): `kinds` weights skill, item and crowns cards;
+ * `rarity` weights the rarity of skill and Word cards; `crowns` is the purse range. Weights are non-negative
+ * integers, at least one above 0 in each; 0 ≤ min ≤ max.
+ */
+export interface RewardTableDef {
+  readonly kinds: Readonly<Partial<Record<RewardKind, number>>>;
+  readonly rarity: Readonly<Partial<Record<Rarity, number>>>;
+  readonly crowns: { readonly min: number; readonly max: number };
+}
+
 /** One act of a run (spec: Run map, `act.json`). */
 export interface ActDef extends Base {
   readonly kind: "act";
@@ -258,6 +273,11 @@ export interface ActDef extends Base {
   readonly groups?: readonly string[];
   /** Step bands of tier weights; the first starts at step 1, `from` strictly increasing. */
   readonly tiers?: readonly TierBand[];
+  /**
+   * Reward tables per fight tier (spec: Rewards and level-ups). An act that can fight (it has groups, or a fixed
+   * node whose `ref` is a group) has all four tiers.
+   */
+  readonly rewards?: Readonly<Partial<Record<GroupTier, RewardTableDef>>>;
 }
 
 export type ContentDef =
