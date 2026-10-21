@@ -12,7 +12,8 @@
     "test": "echo \"narrative: no tests until M2\""
   },
   "dependencies": {
-    "@tow/core": "workspace:*"
+    "@tow/core": "workspace:*",
+    "inkjs": "^2.4.0"
   },
   "devDependencies": {
     "typescript": "~5.9.2"
