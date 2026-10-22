@@ -1,7 +1,7 @@
 # Development log and handoff: Tales of Words: Invasion
 
 **Read this first in any new chat.** It records where development stands, how to get access, and what to do next.
-Last updated: 22 Oct 2026 (Europe/London). `main` has PR #16 (inkjs added to `@tow/narrative`, 21 Oct); CI green on `main`. M2 step 5 product-owner questions are being asked.
+Last updated: 22 Oct 2026 (Europe/London). `main` has PR #16 (inkjs added to `@tow/narrative`, 21 Oct); CI green on `main`. M2 step 5 decisions taken (see below); spec 1.12 next.
 
 ## Working locally (from 21 Oct 2026)
 - Development now moves to **Claude Code on the product owner's Windows PC**, in `D:\_Claude\Tales-of-Words---Invasion`. Git (HTTPS, signed in with `gh auth login`), Node, pnpm and Claude Code are installed; `pnpm install` has run.
@@ -101,6 +101,17 @@ Each step went through the agent loop in `CLAUDE.md` (spec-to-tests → builder 
 4b. **Reward screen, rerolls and the after-fight flow.** PR #14 (`96dc781`, live on staging, live browser tests passed). Spec 1.11 "After-fight flow": rewards → learning (only with 5 held) → level-up (elite and boss) → next step or routes; 3 cards + the Intelligence bonus (skills or Words); the boss's third card is a relic; per-tier reward tables in `act.json` (kinds, rarity, crowns range) required for every act that can fight; at most one purse; upgrades of held cards; rerolls per screen on their own stream, 3 per run through grants. Placeholder Act I tables. ADR 0013. Core suite 1,524 tests.
    - PR #15 (`35a78c9`): doc-only refresh of two Run map notes in the spec.
    - Known, accepted: a content bug from an unvalidated pack can leave a reward screen half-cleared (state after a content-bug error is unspecified, as elsewhere).
+
+### M2 step 5 decisions (product owner, 22 Oct 2026)
+To be written up as spec 1.12 "Events" and "Merchant".
+- **Event outcomes:** HP, crowns, story flags; teach / upgrade / remove cards and Words; give or take items and relics; raise or lower stats (cap 7); companions join or leave (adds a `companion` content kind). **Every outcome is a module registered by id**, so outcomes can change without touching the event engine (product owner: "as modular as possible"; not every outcome will be used).
+- **Event fights:** an event can start a full fight (enemy group + tier) with the normal after-fight flow; the story can continue after a win.
+- **Event rewards:** an event can open a rewards screen at a named tier, using the act's reward table, rerolls as usual.
+- **Event pool:** per act, no repeats within a run; fixed events (e.g. `event.act1_crossroads`) are never in the random pool; an empty pool means the event type isn't offered.
+- **Merchant types:** merchants are content (e.g. smith, scribe, peddler) with their own stock rules and their own list of services; `act.json` lists types by weight; the option card names the merchant; **each type at most once per run** (the merchant-never-twice-in-a-row rule stays).
+- **Services** (per type): heal for crowns, remove a card, upgrade a card, reroll stock for crowns (separate from the ad rerolls).
+- **Prices:** `act.json` table of base price by kind × rarity, scaled by an act multiplier (placeholders).
+- **Ink:** tracked during the run: per step cleared and per boss beaten (`act.json` placeholders), and from event outcomes; kept win or lose. Ink gain goes through one core entry point so later sources (e.g. a skill that steals or generates Ink) plug in. First-time-event bonus not chosen.
 
 ### Next steps
 From the spec's build order: loadout, stats and level-ups, node registry, events via inkjs, merchant, rewards and rerolls, learning skills, companions, run limits. **Done when** a full Act I run plays headless in the simulator. Suggested order, one PR each through the agent loop:
