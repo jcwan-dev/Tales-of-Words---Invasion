@@ -1,6 +1,6 @@
 # Tales of Words: the Roguelike — Game Spec
 
-**Version:** Draft 1.11 (12 Oct 2026)
+**Version:** Draft 1.12 (22 Oct 2026)
 **Lore source for magic:** `world/magic-system.md` (to be expanded in the wiki)
 **Visual version with screen mockups:** https://claude.ai/artifact/L1sHrieFqRf2CYbsc8m61s
 **Sync rule:** This doc and the artifact above are the same spec. Any change to one must be applied to the other.
@@ -8,6 +8,7 @@
 A narrative text roguelike for mobile, in the spirit of End of Winter (Tailormade Games), set in the Tales of Words universe. Android first, iOS later. Portrait, one-handed, offline single-player. Names marked "placeholder" show the shape of the content and don't fix the lore.
 
 ## Changelog
+- **1.12:** Events, merchant, companions and Ink in the run (decided 22 Oct 2026, M2 step 5): events are an Ink story plus a small JSON file, drawn from the act's pool without repeats; checks and outcomes are modules registered by id; locked choices tagged with requirements; outcomes apply at once and can teach, upgrade or remove cards, give or take items and relics, change stats, bring or lose companions, open a rewards screen or start a full fight; events and merchants keep node progress so quitting resumes them. Merchants are typed characters (once per run) with stock slots and services (heal, remove, upgrade, reroll stock), prices from a pack table by kind and rarity scaled by the act. Companions as content, one at a time. Ink is tracked during the run (per step, per boss, from events) and kept win or lose.
 - **1.11:** Rewards, rarity and level-ups (decided 12 Oct 2026): skills and Words have five rarities (grey 90%, green 95%, blue 100%, purple 110%, orange 125% of their stat scaling); everything starts grey unless the loadout raises it; rewards are 1 of 3 cards (skill or Word, item, crowns) with rarity weights by act and fight tier, elites give higher rarities; a held skill offered at a higher rarity upgrades it; the act boss reward always includes a relic; level-ups raise max and current HP together; swapping an item keeps the HP you were missing. After-fight flow (M2.4b): rewards → learning → level-up; screen size with the Intelligence bonus; the boss's third card is a relic; at most one purse; per-screen rerolls through grants; reward tables per tier for every act that can fight.
 - **1.10:** Combat node (decided 12 Oct 2026): enemies and enemy groups as data; groups tiered normal / hard / elite / boss; the act's tier weights shift by step band, no stat scaling; HP carries over, Shield refills, statuses and cooldowns reset each fight; a fall mid-fight can be revived and the fight continues (half HP, Shield full, the player's statuses cleared, the player acts next); fights give no crowns directly (crowns come from rewards, step 4).
 - **1.9:** Run map (decided 12 Oct 2026): no map ahead, choices drawn at each step; always 3 options with at least two node types, no merchant right after a merchant; step count rolled once per act from `act.json`; fixed nodes (mid-act event, boss) replace the choice at their step; routes after the boss by story flags; run state is plain data and quitting mid-node restarts that node with the same seed; revive at half HP rounded up.
@@ -121,7 +122,7 @@ The five picks build the player unit at the start of a run:
   - Analyse is listed as a technique but needs effect types that don't exist yet (reveal intent); it joins the pool when they do.
 
 ### Companions
-Companions join during a run through events, one at a time. Each gives a **special skill** (it counts toward the 5 cards; joining when you hold 5 works like learning a skill: forget one card or leave the companion's skill) plus their own **event triggers**. They can leave or betray you depending on your choices and path. Placeholder examples:
+Companions join during a run through events, one at a time (rules in "Companions" under Run map). Each gives a **special skill** (it counts toward the 5 cards; joining when you hold 5 works like learning a skill: forget one card or leave the companion's skill) plus their own **event triggers**. They can leave or betray you depending on your choices and path. Placeholder examples:
 
 | Companion | Special skill | Event triggers |
 |---|---|---|
@@ -444,9 +445,9 @@ NodeRegistry.register(new CombatNode())
 NodeRegistry.register(new MerchantNode())
 ```
 
-- **Events:** written in Ink (inkle), one file per event. Choices can check character triggers, companion triggers, any of the seven stats, character, path, items, companions or story flags. Locked options stay visible (greyed, with requirement).
+- **Events:** written in Ink (inkle), one file per event. Choices can check character triggers, companion triggers, any of the seven stats, character, path, items, companions or story flags. Locked options stay visible (greyed, with requirement). Details in "Events".
 - **Combat:** turn-based, one action per turn: the weapon Strike, the companion skill or one of your skills; each skill card shows its current value and scaling stats. Enemies are data files (stats, weighted moves, a written intent line per move). Intent is a text hint, not a number. Bosses can switch move sets at HP thresholds.
-- **Merchant:** stock rolled from the act's loot table, prices scaled by act, spends crowns (in-run currency). Merchants can be recurring characters.
+- **Merchant:** typed merchant characters with stock slots and services, prices scaled by act, spends crowns (in-run currency). Details in "Merchant".
 
 ### Rewards and level-ups (decided 12 Oct 2026)
 **After each won fight** the player picks **1 of 3 reward cards**, or leaves them all. A card is one of:
@@ -493,19 +494,21 @@ Top to bottom:
 Tap a card to select, then tap an enemy to use it on (with one enemy, tap the card again). Using a card ends your turn. Long press shows full card text. Floating text and screen shake can be reduced in settings.
 
 
-Example event (`content/acts/act1/events/ferryman.ink`):
+Example event (`content/base/acts/act1_drowned_marches/events/ferryman.ink`, placeholder text; see "Events"):
 ```
-=== ferryman ===
 A ferryman waits where the causeway breaks.
 He names his price before you speak: "Something you will miss."
-* {might >= 3 and path == "sworn_road"} [Refuse, and wade across.]
+* [Refuse, and wade across.] # req: stat might 3
     ~ hp(-8)
-* [Give him 30 crowns.] ~ gold(-30)
-* {hasTag("soldier")} [Show him your old company seal.]
-* {companion == "mara"} [Let Mara talk.]
-* {intelligence >= 3} [Read the sigil burned into his lantern.]
+* [Give him 30 crowns.] # req: crowns 30
+    ~ crowns(-30)
+* [Show him your old company seal.] # req: tag soldier
+* [Let Mara talk.] # req: companion companion.mara
+* [Read the sigil burned into his lantern.] # req: stat intelligence 3
+    ~ learn("word.dun")
 * {hasTag("street")} [Cut his mooring rope while he counts.]
     ~ flag("ferryman_wronged")
+- -> END
 ```
 
 ## Acts, routes and content packs
@@ -549,11 +552,11 @@ There is no map ahead: after each node, the next choices are drawn.
 - Randomness: the step count, each step's draw and each option's build use their own streams from the run seed, the act's position in the run (1st, 2nd, …), the act and the step (and the option's position), so nothing else in the run shifts them, and an act visited twice is drawn afresh.
 - Options are shown in the order drawn (option 3 last).
 
-**Node modules.** The engine knows only the interface: a node type has an id, says whether it may follow itself, says whether it can appear now, and builds an option from the run, the act, an optional `ref` and its RNG. The node then runs its own interaction (a fight, an Ink event, a shop) and hands the engine a **node result**: HP change, crowns change, story flags set or cleared, and for a won fight its tier, which starts the after-fight flow (see "Rewards and level-ups"). The engine applies it: HP stays between 0 and max HP; crowns never go below 0 (a result that would is a module bug and is refused). The combat module exists (see "Combat node"); the event and merchant modules arrive in M2 step 5.
+**Node modules.** The engine knows only the interface: a node type has an id, says whether it may follow itself, says whether it can appear now, and builds an option from the run, the act, an optional `ref` and its RNG. The node then runs its own interaction (a fight, an Ink event, a shop) and hands the engine a **node result**: HP change, crowns change, story flags set or cleared, and for a won fight its tier, which starts the after-fight flow (see "Rewards and level-ups"). The engine applies it: HP stays between 0 and max HP; crowns never go below 0 (a result that would is a module bug and is refused). The combat, event and merchant modules are described in "Combat node", "Events" and "Merchant".
 
-**Run state** is plain data (it survives a JSON round trip): seed, phase, the loadout picks and assembled player data (HP, max HP, cards, base stats, event tags, path rules), crowns (start at 0, a placeholder for balance), story flags, run limits, the current act, step and step count, the current offer, the node being played and the previous node's type. Node progress (a fight in progress, a position in an Ink story) is not part of it.
+**Run state** is plain data (it survives a JSON round trip): seed, phase, the loadout picks and assembled player data (HP, max HP, cards, base stats, event tags, path rules), crowns (start at 0, a placeholder for balance), Ink earned, story flags, the companion, the events entered and merchants met, run limits, the current act, step and step count, the current offer, the node being played and the previous node's type. A fight in progress is not part of it; events and merchants keep their node progress in it (see "Events" and "Merchant").
 - **Phases:** choosing a node → in a node → (after a fight) rewards → learning → level-up → choosing a node; after the boss, choosing a route → next act; or fallen; or ended (won or lost).
-- **Pausing:** the run is saved between nodes and when a node is entered. Quitting in the middle of a node and resuming restarts that node from its beginning: it was built from its own seed, so the same enemies, stock and text come back.
+- **Pausing:** the run is saved between nodes and when a node is entered. Quitting in the middle of a fight and resuming restarts that fight from its beginning: it was built from its own seed, so the same enemies come back. Events and merchants resume where the player was (their node progress is saved after every choice or purchase).
 - **Commands in, events out:** choosing an option, completing a node, choosing a route, reviving and ending the run are commands. A command that doesn't fit the phase, or names an option or route that doesn't exist, is refused and changes nothing.
 - **Falling:** a node result that takes HP to 0 makes the player fall. They may revive (if the run limit allows it and a grant is given) at half max HP, rounded up, or let the tale end (the run is lost). Outside a fight, a revived player moves on as if the node had finished; inside a fight, the fight continues (see "Combat node"); after a won fight, the after-fight flow runs.
 - When the run ends (won or lost), no node is current.
@@ -578,8 +581,72 @@ There is no map ahead: after each node, the next choices are drawn.
 - The run is also saved after a revive. Resuming in the middle of a fight restarts it from the beginning, with the HP and revives the save holds.
 - **Details:** enemy stats are integers ≥ 0; starting stacks are integers ≥ 1; move weights are integers ≥ 1 and move ids are lowercase (`[a-z][a-z0-9_]*`), unique within the enemy. An act has `groups` and `tiers` together or neither; `tiers` is non-empty; a group id appears once in `groups`. A fixed combat node needs a `ref` naming a group. The fight's max HP is the run's max HP (level-ups change it later). An unknown card id in the run is a bug (error).
 
+### Events (decided 22 Oct 2026)
+**Events** (content kind `event`, id `event.<name>`) are a small JSON file next to one Ink story: `acts/<act>/events/<name>.json` with `{ "kind": "event", "id", "text", "story": "<name>.ink", "flags"?, "notFlags"? }`. `text` is the localisation key of what the player reads on the choice screen. `flags` / `notFlags` (optional) work as for routes: the event can only be drawn while every flag in `flags` is set and none in `notFlags` is. The Ink source is compiled when content loads; an Ink compile error is a content error.
+
+**Act data:** `act.json` gains `events`: the ids of the act's random event pool. A fixed event (a fixed node of type `event`, its `ref` an event id) is never in the pool; an id in both is a content error.
+
+**Drawing an event option:** one event with equal chance among the pool's events that are open (flags), not yet entered in this run, and not already offered at this step. Its tag is "Event"; its text is the event's `text`. The event type can appear when at least one pool event can be drawn. An event counts as entered when the player chooses it (offered and not chosen, it can come back). A fixed event is entered when played, and is drawn like any node at its step even if it was entered before.
+
+**Ink stories** see the run only through the game's functions; they never change game state themselves. Text in the story is English placeholder text for now (code rule 5 has an exemption for Ink story text until translation is set up in M5: one Ink file per locale with the same knots).
+- **Checks** are read-only functions, each a module registered by id (adding a check never changes the event engine): `stat(name)`, `hasTag(tag)` (character, path and companion tags), `character()`, `path()`, `companion()` (id or ""), `hasItem(id)`, `hasRelic(id)`, `hasCard(id)`, `flag(name)`, `hp()`, `maxHp()`, `crowns()`, `ink()`.
+- **Hidden choices** use plain Ink conditions (`* {flag("met_mara")} [...]`): the player never sees them.
+- **Locked choices** stay visible, greyed, with their requirement: a choice tagged `# req: <check> <args>` (e.g. `# req: stat might 3`, `# req: tag soldier`, `# req: companion companion.mara`, `# req: crowns 30`, `# req: flag ferryman_paid`) is locked unless every `req` on it passes. A stat or crowns requirement passes at or above the number. The requirement label comes from the check module ("Might 3", "Soldier", "Mara is with you").
+- **Outcomes** are Ink function calls in the story (`~ hp(-8)`), each a module registered by its function name, so outcomes can be added or changed without touching the event engine. Not every outcome needs to be used. A story calling an unknown outcome, or one with bad arguments, is a content error (checked when content loads where the arguments are constants, otherwise when called). Outcomes apply in the order called, right away (the run state changes as the story goes):
+
+| Outcome | Does |
+|---|---|
+| `hp(n)` | Heal or damage; HP stays between 0 and max HP. Reaching 0 makes the player fall (see below). |
+| `crowns(n)` | Gain or pay crowns. A story must check `crowns()` before paying; paying more than held is a content bug (refused, as for node results). |
+| `flag(name)`, `unflag(name)` | Set or clear a story flag. |
+| `stat(name, n)` | Raise or lower a base stat by n: never above the run cap of 7, never below 0. Vitality changes max HP and current HP together, as in level-ups (current HP never below 1 from this). |
+| `learn(cardId, rarity?)` | Offer a skill or Word (default grey): taken as a reward card is (upgrade a held lower rarity; add it; with 5 held, the learning screen). Held at the same or a higher rarity: nothing. |
+| `upgrade(cardId)` | A held skill or Word rises one rarity (not above orange). Not held: nothing. |
+| `forget(cardId)` | Removes a held card. Not held: nothing. |
+| `removeCard()` | The player picks one held card to forget, or keeps them all. |
+| `item(itemId)` | Equips the item (see Item swaps), with its card offered as for reward items. |
+| `loseItem(slot)` | Empties the armor or accessory slot (stats, max HP and Shield recomputed as in Item swaps). The weapon slot can't be emptied (content error). Cards from the item stay. |
+| `relic(id)`, `loseRelic(id)` | Gain a relic (already held: nothing) or lose one (not held: nothing). |
+| `companionJoins(id)`, `companionLeaves()` | See Companions. |
+| `rewards(tier)` | A rewards screen from the act's table for that tier (normal, hard, elite or boss; never the boss relic card), rerolls as usual. No level-up. |
+| `fight(groupId)` | A fight against that group, as a combat node of the group's tier, with the after-fight flow (rewards, learning, level-up after an elite or boss group). |
+| `ink(n)` | Gain n Ink (n ≥ 1). |
+
+- **Pauses:** an outcome that needs the player (learning, `removeCard`, rewards, a fight and its after-fight flow) pauses the story; it continues after. A fight in an event works like a combat node fight, including revives (the fight continues); if the tale ends, the run is lost. After a won event fight the story continues from where it called `fight` (so a story that continues after a fight knows it was won).
+- **Falling outside a fight:** an `hp` outcome that takes HP to 0 makes the player fall. If they revive (half max HP, rounded up), the story continues; otherwise the run is lost.
+- **Ending:** the node is complete when the story reaches its end; the run moves on to the next step (or the routes, after the last step). An event's node result carries no HP or crowns change of its own: everything was applied as it happened.
+- **Randomness:** Ink's own random functions use a seed from the event's node stream, so the same event at the same node plays the same.
+- **Pausing the run:** events keep their **node progress** in the run state (the Ink story state as plain data, plus any open pause), saved after every choice. Quitting and resuming continues the story where the player was; outcomes already given stay given. (Fights still restart from their beginning, see Run map; a fight inside an event restarts that fight, not the event.)
+
+### Merchant (decided 22 Oct 2026)
+**Merchant types** (content kind `merchant`, id `merchant.<name>`): a name key, a text key (the choice screen), **stock slots** and **services**. Merchants are characters (a smith, a scribe, a peddler…), and each one appears **at most once per run**.
+- `stock`: a list of slots, each `{ "kind": "skill" | "word" | "item" | "relic", "count", "slot"? }` (`slot` narrows items to weapon, armor or accessory). Example: a scribe sells `[{ "kind": "word", "count": 3 }, { "kind": "skill", "count": 1 }]`.
+- `services` (optional, each optional): `heal` `{ "amount" }` (restores that much HP per purchase, repeatable), `remove` (forget one card of the player's choice, once per visit), `upgrade` (raise one held skill or Word by one rarity, not above orange, once per visit), `reroll` `{ "max" }` (redraw the whole stock for crowns, up to `max` times per visit; separate from the ad rerolls, which stay for rewards).
+
+**Act data:** `act.json` gains `merchant`: `types` (merchant id → weight ≥ 0, at least one above 0), `rarity` (grey to orange weights for skill and Word stock, as in reward tables) and `priceMultiplier` (a percentage, e.g. 100 in Act I). An act with the merchant type at weight above 0 has a `merchant` entry.
+
+**Prices** (content kind `prices`, one per pack, id `prices.<pack>`): base prices in crowns: `skill` and `word` by rarity (grey to orange), `item`, `relic`, and the services `heal`, `remove`, `upgrade` (by the rarity reached) and `reroll` (by reroll number: first, second, …; the last entry repeats). A price shown is base × the act's `priceMultiplier` / 100, rounded down, at least 1. All numbers are placeholders to tune with the simulator.
+
+**Building a merchant option:** the merchant type is drawn by the act's `types` weights among types not yet met in this run and not already offered at this step; the option's tag is "Merchant" and its text the merchant's text. The merchant type can appear when such a type exists (and not right after a merchant, as before). The type counts as met when the player chooses it. The stock is drawn when the option is built (what the player reads is what they get), slot by slot in order: a skill or Word draws a rarity by the act's `rarity` weights among rarities that still have a candidate, then a candidate with equal chance (not held, or held at a lower rarity: an upgrade); an item: one not equipped; a relic: one not held. No two stock entries name the same card, item or relic; a slot with no candidate stays empty. Candidates are taken in id order; a skill or Word named as another's `upgrade` is never stocked; locked content is left out once unlocks exist (M4).
+
+**At the merchant** the player may, in any order, until they leave:
+- **buy** a stock entry they can afford: crowns are paid, then it is taken as a reward card of that kind is (learning screen if 5 held; item swap; relic gained). The entry is then sold out. An entry that no longer applies (e.g. the skill was since learned at that rarity elsewhere in the visit) can't be bought.
+- **use a service** they can afford, within its limits (`remove` and `upgrade` need a card to act on; `heal` needs missing HP and never heals above max HP).
+- **reroll** the stock (if the merchant offers it): pays the price for that reroll number and redraws every slot, sold-out ones included, on a stream per node and reroll number.
+- **leave**: the node is complete (no HP or crowns change in the node result; all were applied as they happened).
+- Like events, the merchant keeps **node progress** (sold-out entries, service uses, rerolls, the current stock) in the run state, so quitting and resuming comes back to the same shop.
+
+### Companions (decided 22 Oct 2026)
+Companions (content kind `companion`, id `companion.<name>`): a name key, a **skill** (a skill or Word id, with an optional `rarity`, default grey) and **event tags**. They join and leave only through event outcomes.
+- **One at a time.** `companionJoins` while another companion is with the player: the old one leaves first.
+- **Joining:** the companion's tags join the run's story tags; their skill is offered as a learned card (with 5 held, forget one or leave the companion's skill). Leaving the skill doesn't stop them joining.
+- **Leaving:** their tags go; their skill card goes if it is held (freeing the slot). Forgetting their skill earlier doesn't make them leave.
+- A companion's skill is never offered by rewards or merchants while that companion is with the player.
+
 ## Progression: Ink ✒
 Meta currency earned every run (win or lose) from steps cleared, bosses, lore found and first-time events. Never sold for money.
+
+**Ink in the run (decided 22 Oct 2026):** the run counts Ink as it is earned and keeps all of it when the run ends, won or lost. Sources today: each step cleared (`act.json` `ink.perStep`, when the step's node is complete) and each act boss beaten (`ink.perBoss`, on top of its step), and the `ink(n)` event outcome. All Ink gains go through one core entry point that records the source, so later sources (a skill that steals or makes Ink, first-time events, lore found) plug in without changing the run engine. Placeholder numbers, tuned with the simulator against the targets below.
 
 | Unlock | Ink price | Rough runs |
 |---|---|---|
